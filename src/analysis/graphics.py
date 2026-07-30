@@ -1,0 +1,341 @@
+from __future__ import annotations
+
+from PySide6.QtCore import QByteArray, QMimeData, QPointF, QRectF, Qt, Signal
+from PySide6.QtGui import (
+    QBrush,
+    QColor,
+    QDrag,
+    QPainter,
+    QPainterPath,
+    QPen,
+)
+from PySide6.QtWidgets import (
+    QGraphicsEllipseItem,
+    QGraphicsItem,
+    QGraphicsPathItem,
+    QGraphicsRectItem,
+    QGraphicsScene,
+    QGraphicsTextItem,
+    QGraphicsView,
+    QTreeWidget,
+    QTreeWidgetItem,
+)
+
+from .model import Graph, WorkflowEdge, WorkflowNode
+from .registry import NODE_SPECS, specs_for_scope
+
+
+MIME_BLOCK_TYPE = "application/x-belleflow-block"
+NODE_WIDTH = 210.0
+HEADER_HEIGHT = 38.0
+PORT_RADIUS = 6.5
+
+
+class PortItem(QGraphicsEllipseItem):
+    def __init__(
+        self,
+        node_item: "NodeItem",
+        name: str,
+        direction: str,
+        index: int,
+        count: int,
+    ) -> None:
+        super().__init__(-PORT_RADIUS, -PORT_RADIUS, 2 * PORT_RADIUS, 2 * PORT_RADIUS)
+        self.node_item = node_item
+        self.name = name
+        self.direction = direction
+        self.setParentItem(node_item)
+        self.setBrush(QColor("#e8edf3"))
+        self.setPen(QPen(QColor("#26323f"), 1.5))
+        self.setZValue(3)
+        y = HEADER_HEIGHT + (index + 1) * (node_item.height - HEADER_HEIGHT) / (count + 1)
+        x = 0.0 if direction == "input" else NODE_WIDTH
+        self.setPos(x, y)
+        self.setToolTip(f"{direction}: {name}")
+
+    def mousePressEvent(self, event) -> None:  # noqa: N802
+        scene = self.scene()
+        if isinstance(scene, GraphScene):
+            scene.port_clicked(self)
+            event.accept()
+            return
+        super().mousePressEvent(event)
+
+    def center_in_scene(self) -> QPointF:
+        return self.mapToScene(QPointF(0.0, 0.0))
+
+
+class NodeItem(QGraphicsRectItem):
+    def __init__(self, node: WorkflowNode) -> None:
+        self.node = node
+        spec = NODE_SPECS[node.type]
+        rows = max(len(spec.inputs), len(spec.outputs), 1)
+        self.height = max(92.0, HEADER_HEIGHT + rows * 28.0)
+        super().__init__(0.0, 0.0, NODE_WIDTH, self.height)
+
+        self.setBrush(QColor("#202733"))
+        self.setPen(QPen(QColor("#11161d"), 1.5))
+        self.setFlags(
+            QGraphicsItem.GraphicsItemFlag.ItemIsMovable
+            | QGraphicsItem.GraphicsItemFlag.ItemIsSelectable
+            | QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges
+        )
+        self.setPos(node.x, node.y)
+        self.setZValue(1)
+
+        header = QGraphicsRectItem(0.0, 0.0, NODE_WIDTH, HEADER_HEIGHT, self)
+        header.setBrush(QColor(spec.color))
+        header.setPen(Qt.PenStyle.NoPen)
+
+        self.title_item = QGraphicsTextItem(node.title, self)
+        self.title_item.setDefaultTextColor(QColor("white"))
+        self.title_item.setPos(10.0, 7.0)
+        self.title_item.setTextWidth(NODE_WIDTH - 20.0)
+
+        self.type_item = QGraphicsTextItem(spec.label, self)
+        self.type_item.setDefaultTextColor(QColor("#b8c2cf"))
+        self.type_item.setPos(10.0, HEADER_HEIGHT + 9.0)
+
+        self.input_ports: dict[str, PortItem] = {}
+        self.output_ports: dict[str, PortItem] = {}
+        for index, name in enumerate(spec.inputs):
+            self.input_ports[name] = PortItem(self, name, "input", index, len(spec.inputs))
+        for index, name in enumerate(spec.outputs):
+            self.output_ports[name] = PortItem(self, name, "output", index, len(spec.outputs))
+
+    def set_title(self, title: str) -> None:
+        self.node.title = title
+        self.title_item.setPlainText(title)
+
+    def itemChange(self, change, value):  # noqa: N802
+        if change == QGraphicsItem.GraphicsItemChange.ItemPositionHasChanged:
+            self.node.x = float(value.x())
+            self.node.y = float(value.y())
+            scene = self.scene()
+            if isinstance(scene, GraphScene):
+                scene.update_edges_for_node(self.node.id)
+                scene.graph_changed.emit()
+        return super().itemChange(change, value)
+
+
+class EdgeItem(QGraphicsPathItem):
+    def __init__(
+        self,
+        edge: WorkflowEdge,
+        source_port: PortItem,
+        target_port: PortItem,
+    ) -> None:
+        super().__init__()
+        self.edge = edge
+        self.source_port = source_port
+        self.target_port = target_port
+        self.setPen(QPen(QColor("#86b7d9"), 3.0))
+        self.setFlags(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable)
+        self.setZValue(0)
+        self.update_path()
+
+    def update_path(self) -> None:
+        start = self.source_port.center_in_scene()
+        end = self.target_port.center_in_scene()
+        dx = max(70.0, abs(end.x() - start.x()) * 0.5)
+        path = QPainterPath(start)
+        path.cubicTo(
+            QPointF(start.x() + dx, start.y()),
+            QPointF(end.x() - dx, end.y()),
+            end,
+        )
+        self.setPath(path)
+
+
+class GraphScene(QGraphicsScene):
+    node_selected = Signal(str)
+    graph_changed = Signal()
+    status_message = Signal(str)
+
+    def __init__(self, graph: Graph, parent=None) -> None:
+        super().__init__(parent)
+        self.graph = graph
+        self.node_items: dict[str, NodeItem] = {}
+        self.edge_items: dict[str, EdgeItem] = {}
+        self.pending_port: PortItem | None = None
+        self.setSceneRect(-2000.0, -1500.0, 4000.0, 3000.0)
+        self.selectionChanged.connect(self._selection_changed)
+        self.rebuild()
+
+    def rebuild(self) -> None:
+        self.clear()
+        self.node_items.clear()
+        self.edge_items.clear()
+        self.pending_port = None
+        for node in self.graph.nodes:
+            self._add_node_item(node)
+        for edge in self.graph.edges:
+            self._add_edge_item(edge)
+
+    def _add_node_item(self, node: WorkflowNode) -> NodeItem:
+        item = NodeItem(node)
+        self.addItem(item)
+        self.node_items[node.id] = item
+        return item
+
+    def _add_edge_item(self, edge: WorkflowEdge) -> EdgeItem:
+        source = self.node_items[edge.source].output_ports[edge.source_port]
+        target = self.node_items[edge.target].input_ports[edge.target_port]
+        item = EdgeItem(edge, source, target)
+        self.addItem(item)
+        self.edge_items[edge.id] = item
+        return item
+
+    def add_block(self, block_type: str, position: QPointF) -> WorkflowNode:
+        spec = NODE_SPECS[block_type]
+        if spec.scope != self.graph.scope:
+            raise ValueError(f"{spec.label} cannot be added to a {self.graph.scope} graph.")
+        node = self.graph.add_node(spec, position.x(), position.y())
+        item = self._add_node_item(node)
+        item.setSelected(True)
+        self.graph_changed.emit()
+        return node
+
+    def port_clicked(self, port: PortItem) -> None:
+        if self.pending_port is None:
+            self.pending_port = port
+            port.setBrush(QColor("#f4c95d"))
+            self.status_message.emit("Select a port with the opposite direction.")
+            return
+
+        first = self.pending_port
+        first.setBrush(QColor("#e8edf3"))
+        self.pending_port = None
+        if first.direction == port.direction:
+            self.status_message.emit("Connect an output port to an input port.")
+            return
+
+        source = first if first.direction == "output" else port
+        target = port if port.direction == "input" else first
+        try:
+            edge = self.graph.add_edge(
+                source.node_item.node.id,
+                source.name,
+                target.node_item.node.id,
+                target.name,
+            )
+        except ValueError as exc:
+            self.status_message.emit(str(exc))
+            return
+        self._add_edge_item(edge)
+        self.graph_changed.emit()
+        self.status_message.emit("Blocks connected.")
+
+    def update_edges_for_node(self, node_id: str) -> None:
+        for edge in self.graph.incoming(node_id) + self.graph.outgoing(node_id):
+            item = self.edge_items.get(edge.id)
+            if item:
+                item.update_path()
+
+    def delete_selected(self) -> None:
+        selected = list(self.selectedItems())
+        edge_ids = [item.edge.id for item in selected if isinstance(item, EdgeItem)]
+        node_ids = [item.node.id for item in selected if isinstance(item, NodeItem)]
+        for edge_id in edge_ids:
+            self.graph.remove_edge(edge_id)
+        for node_id in node_ids:
+            self.graph.remove_node(node_id)
+        if edge_ids or node_ids:
+            self.rebuild()
+            self.graph_changed.emit()
+
+    def _selection_changed(self) -> None:
+        for item in self.selectedItems():
+            if isinstance(item, NodeItem):
+                self.node_selected.emit(item.node.id)
+                return
+        self.node_selected.emit("")
+
+
+class GraphView(QGraphicsView):
+    def __init__(self, scene: GraphScene, parent=None) -> None:
+        super().__init__(scene, parent)
+        self.setAcceptDrops(True)
+        self.setRenderHint(QPainter.RenderHint.Antialiasing)
+        self.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
+        self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
+        self.setBackgroundBrush(QColor("#151a21"))
+
+    def wheelEvent(self, event) -> None:  # noqa: N802
+        if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+            factor = 1.15 if event.angleDelta().y() > 0 else 1 / 1.15
+            self.scale(factor, factor)
+            event.accept()
+            return
+        super().wheelEvent(event)
+
+    def dragEnterEvent(self, event) -> None:  # noqa: N802
+        if event.mimeData().hasFormat(MIME_BLOCK_TYPE):
+            event.acceptProposedAction()
+            return
+        super().dragEnterEvent(event)
+
+    def dragMoveEvent(self, event) -> None:  # noqa: N802
+        if event.mimeData().hasFormat(MIME_BLOCK_TYPE):
+            event.acceptProposedAction()
+            return
+        super().dragMoveEvent(event)
+
+    def dropEvent(self, event) -> None:  # noqa: N802
+        if not event.mimeData().hasFormat(MIME_BLOCK_TYPE):
+            super().dropEvent(event)
+            return
+        block_type = bytes(event.mimeData().data(MIME_BLOCK_TYPE)).decode("utf-8")
+        position = self.mapToScene(event.position().toPoint())
+        scene = self.scene()
+        if isinstance(scene, GraphScene):
+            scene.add_block(block_type, position)
+        event.acceptProposedAction()
+
+    def keyPressEvent(self, event) -> None:  # noqa: N802
+        if event.key() in (Qt.Key.Key_Delete, Qt.Key.Key_Backspace):
+            scene = self.scene()
+            if isinstance(scene, GraphScene):
+                scene.delete_selected()
+            return
+        super().keyPressEvent(event)
+
+
+class BlockPalette(QTreeWidget):
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        self.setHeaderHidden(True)
+        self.setDragEnabled(True)
+        self.setMinimumWidth(205)
+        self.scope = "workflow"
+        self.set_scope(self.scope)
+
+    def set_scope(self, scope: str) -> None:
+        self.scope = scope
+        self.clear()
+        categories: dict[str, QTreeWidgetItem] = {}
+        for spec in specs_for_scope(scope):
+            parent = categories.get(spec.category)
+            if parent is None:
+                parent = QTreeWidgetItem([spec.category])
+                parent.setFlags(parent.flags() & ~Qt.ItemFlag.ItemIsDragEnabled)
+                categories[spec.category] = parent
+                self.addTopLevelItem(parent)
+            item = QTreeWidgetItem([spec.label])
+            item.setData(0, Qt.ItemDataRole.UserRole, spec.key)
+            item.setForeground(0, QBrush(QColor(spec.color).lighter(150)))
+            parent.addChild(item)
+        self.expandAll()
+
+    def startDrag(self, supported_actions) -> None:  # noqa: N802
+        item = self.currentItem()
+        if item is None:
+            return
+        block_type = item.data(0, Qt.ItemDataRole.UserRole)
+        if not block_type:
+            return
+        mime = QMimeData()
+        mime.setData(MIME_BLOCK_TYPE, QByteArray(str(block_type).encode("utf-8")))
+        drag = QDrag(self)
+        drag.setMimeData(mime)
+        drag.exec(Qt.DropAction.CopyAction)

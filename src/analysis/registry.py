@@ -1,0 +1,346 @@
+from __future__ import annotations
+
+from .model import NodeSpec, PropertySpec
+
+
+P = PropertySpec
+
+
+def _specs() -> list[NodeSpec]:
+    return [
+        NodeSpec(
+            "root_files",
+            "ROOT File Set",
+            "Input",
+            "workflow",
+            "#4263a8",
+            inputs=(),
+            properties=(
+                P("directory", "Directory", "path", "./Ntuple"),
+                P("pattern", "Pattern", "text", "*.root"),
+                P("label", "Sample label", "text", "SIGNAL"),
+            ),
+        ),
+        NodeSpec(
+            "analysis_stage",
+            "Analysis Stage",
+            "Processing",
+            "workflow",
+            "#7651a8",
+            properties=(
+                P("executable", "Executable", "path", "./bin/Analysis_main"),
+                P(
+                    "arguments",
+                    "Arguments",
+                    "text",
+                    "{input_dir} {filename} {output_dir}",
+                    multiline=True,
+                    help="Available tokens: {input}, {input_dir}, {filename}, "
+                    "{stem}, {output_dir}, {inputs}",
+                ),
+                P("output_dir", "Output directory", "path", "./results/analysis"),
+                P(
+                    "run_mode",
+                    "Execution",
+                    "choice",
+                    "per_file",
+                    ("per_file", "once"),
+                ),
+                P("pipeline", "Loader pipeline", "text", "main_analysis"),
+                P("job_name", "Job name", "text", "Analyze"),
+            ),
+        ),
+        NodeSpec(
+            "validator",
+            "Validate",
+            "Control",
+            "workflow",
+            "#a06c2b",
+            properties=(
+                P("executable", "Executable", "path", "/bin/bash"),
+                P("arguments", "Arguments", "text", "./bash/checker_Analysis.sh"),
+                P("output_dir", "Output directory", "path", ""),
+                P("run_mode", "Execution", "choice", "once", ("once",)),
+                P("job_name", "Job name", "text", "Validate"),
+            ),
+        ),
+        NodeSpec(
+            "command_stage",
+            "Command Stage",
+            "Processing",
+            "workflow",
+            "#356b59",
+            properties=(
+                P("executable", "Executable", "path", "./bin/fit_M_deltaE"),
+                P(
+                    "arguments",
+                    "Arguments",
+                    "text",
+                    "{input_dir} {output_dir}",
+                    multiline=True,
+                ),
+                P("output_dir", "Output directory", "path", "./results"),
+                P(
+                    "run_mode",
+                    "Execution",
+                    "choice",
+                    "once",
+                    ("once", "per_file"),
+                ),
+                P("job_name", "Job name", "text", "Command"),
+            ),
+        ),
+        NodeSpec(
+            "join",
+            "Join / Barrier",
+            "Control",
+            "workflow",
+            "#666b73",
+            inputs=("in",),
+            outputs=("out",),
+            properties=(),
+        ),
+        NodeSpec(
+            "load",
+            "Load",
+            "Input",
+            "loader",
+            "#4263a8",
+            inputs=(),
+            properties=(
+                P("directory_cpp", "Directory (C++)", "text", "argv[1]"),
+                P("including_cpp", "Including string (C++)", "text", "argv[2]"),
+                P("label", "Label", "text", "label"),
+            ),
+        ),
+        NodeSpec(
+            "load_with_cut",
+            "Load With Cut",
+            "Input",
+            "loader",
+            "#4263a8",
+            inputs=(),
+            properties=(
+                P("directory_cpp", "Directory (C++)", "text", "argv[1]"),
+                P("including_cpp", "Including string (C++)", "text", "argv[2]"),
+                P("label", "Label", "text", "label"),
+                P("condition", "Condition", "text", "1", multiline=True),
+            ),
+        ),
+        NodeSpec(
+            "define_variable",
+            "Define Variable",
+            "Transform",
+            "loader",
+            "#3d8060",
+            properties=(
+                P("equation", "Equation", "text", "x + y", multiline=True),
+                P("name", "New variable", "text", "new_variable"),
+            ),
+        ),
+        NodeSpec(
+            "conditional_pair_variable",
+            "Conditional Pair Variable",
+            "Transform",
+            "loader",
+            "#3d8060",
+            properties=(
+                P(
+                    "map_cpp",
+                    "Map expression (C++)",
+                    "text",
+                    "momentum_muonID",
+                    help="Name of a std::map<std::string, std::string> declared in Custom C++.",
+                ),
+                P("order", "Order", "int", 0),
+                P("name", "New variable", "text", "first_muon_muonID"),
+            ),
+        ),
+        NodeSpec(
+            "aggregate_variable",
+            "Aggregate Variable",
+            "Transform",
+            "loader",
+            "#3d8060",
+            properties=(
+                P(
+                    "operation",
+                    "Operation",
+                    "choice",
+                    "average",
+                    ("average", "stddev", "diff", "add"),
+                ),
+                P(
+                    "expressions",
+                    "Expressions",
+                    "text",
+                    "x\ny\nz",
+                    multiline=True,
+                    help="One expression per line.",
+                ),
+                P("order", "Order (Diff/Add)", "int", 0),
+                P("name", "New variable", "text", "aggregate"),
+            ),
+        ),
+        NodeSpec(
+            "set_samples",
+            "Set Sample Categories",
+            "Input",
+            "loader",
+            "#4263a8",
+            properties=(
+                P("mc", "MC labels", "text", "SIGNAL, CHG, MIX"),
+                P("data", "Data labels", "text", ""),
+                P("signal", "Signal labels", "text", "SIGNAL"),
+                P("background", "Background labels", "text", "CHG, MIX"),
+            ),
+        ),
+        NodeSpec(
+            "cut",
+            "Cut",
+            "Selection",
+            "loader",
+            "#a06c2b",
+            properties=(P("condition", "Condition", "text", "M > 1.5", multiline=True),),
+        ),
+        NodeSpec(
+            "print_information",
+            "Print Information",
+            "Inspect",
+            "loader",
+            "#666b73",
+            properties=(P("message", "Message", "text", "========== status =========="),),
+        ),
+        NodeSpec(
+            "save_root",
+            "Save ROOT Files",
+            "Output",
+            "loader",
+            "#9a4d64",
+            properties=(
+                P(
+                    "path_cpp",
+                    "Path expression (C++)",
+                    "text",
+                    'std::string(argv[3]) + "/selected"',
+                ),
+                P("prefix", "Prefix", "text", ""),
+                P("suffix", "Suffix", "text", ""),
+            ),
+        ),
+        NodeSpec(
+            "draw_th1d",
+            "Draw TH1D",
+            "Plot",
+            "loader",
+            "#9a4d64",
+            properties=(
+                P("expression", "Expression", "text", "M"),
+                P("title", "ROOT title", "text", ";M [GeV];Events"),
+                P("bins", "Bins", "int", 50),
+                P("minimum", "Minimum", "float", 1.5),
+                P("maximum", "Maximum", "float", 1.9),
+                P("filename", "PNG filename", "text", "M.png"),
+            ),
+        ),
+        NodeSpec(
+            "draw_th2d",
+            "Draw TH2D",
+            "Plot",
+            "loader",
+            "#9a4d64",
+            properties=(
+                P("x_expression", "X expression", "text", "M"),
+                P("y_expression", "Y expression", "text", "deltaE"),
+                P("title", "ROOT title", "text", ";M [GeV];deltaE [GeV]"),
+                P("x_bins", "X bins", "int", 50),
+                P("x_minimum", "X minimum", "float", 1.5),
+                P("x_maximum", "X maximum", "float", 1.9),
+                P("y_bins", "Y bins", "int", 50),
+                P("y_minimum", "Y minimum", "float", -0.5),
+                P("y_maximum", "Y maximum", "float", 0.4),
+                P("filename", "PNG filename", "text", "M_deltaE.png"),
+                P("draw_option", "Draw option", "text", "COLZ"),
+            ),
+        ),
+        NodeSpec(
+            "draw_stack",
+            "Draw Stack",
+            "Plot",
+            "loader",
+            "#9a4d64",
+            properties=(
+                P("expression", "Expression", "text", "M"),
+                P("title", "ROOT title", "text", ";M [GeV];Events"),
+                P("bins", "Bins", "int", 50),
+                P("minimum", "Minimum", "float", 1.5),
+                P("maximum", "Maximum", "float", 1.9),
+                P("filename", "PNG filename", "text", "M_stack.png"),
+                P("normalized", "Normalized", "bool", False),
+                P("log_scale", "Log scale", "bool", False),
+            ),
+        ),
+        NodeSpec(
+            "print_root",
+            "Save One ROOT File",
+            "Output",
+            "loader",
+            "#9a4d64",
+            properties=(
+                P("filename", "ROOT filename", "text", "./selected.root"),
+            ),
+        ),
+        NodeSpec(
+            "bcs",
+            "Best Candidate",
+            "Selection",
+            "loader",
+            "#a06c2b",
+            properties=(
+                P("expression", "Expression", "text", "chiProb"),
+                P("criteria", "Criteria", "choice", "highest", ("highest", "lowest")),
+            ),
+        ),
+        NodeSpec(
+            "fastbdt_apply",
+            "Apply FastBDT",
+            "Machine Learning",
+            "loader",
+            "#814f87",
+            properties=(
+                P(
+                    "variables",
+                    "Input variables",
+                    "text",
+                    "M\ndeltaE",
+                    multiline=True,
+                    help="One variable or expression per line.",
+                ),
+                P("classifier", "Classifier path", "path", "./weightfile.xml"),
+                P("branch", "Output branch", "text", "FBDT_output"),
+            ),
+        ),
+        NodeSpec(
+            "raw_cpp",
+            "Custom C++",
+            "Advanced",
+            "loader",
+            "#814f87",
+            properties=(
+                P(
+                    "code",
+                    "C++ statements",
+                    "text",
+                    "// Custom Loader calls",
+                    multiline=True,
+                ),
+            ),
+        ),
+    ]
+
+
+NODE_SPECS: dict[str, NodeSpec] = {spec.key: spec for spec in _specs()}
+
+
+def specs_for_scope(scope: str) -> list[NodeSpec]:
+    return [spec for spec in NODE_SPECS.values() if spec.scope == scope]
