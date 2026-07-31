@@ -19,7 +19,7 @@ python3 -m venv .venv
 source .venv/bin/activate
 python3 -m pip install --upgrade pip
 python3 -m pip install -e .
-analysis
+analysis-studio
 ```
 
 On a machine with no display (for example, a login node), start the GUI through
