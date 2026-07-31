@@ -1,58 +1,62 @@
 from pathlib import Path
-import os
-import shutil
-import unittest
 
-from belleflow.execution import HTCondorExporter, LocalExecutor
-from belleflow.model import Project
-from belleflow.registry import NODE_SPECS
+from analysis_studio.execution import HTCondorExporter, LocalExecutor
+from analysis_studio.model import Graph, Project
+from analysis_studio.registry import NODE_SPECS
 
 
-class ExecutionTests(unittest.TestCase):
-    def setUp(self):
-        self.root = Path(f"/tmp/belleflow_test_{os.getpid()}")
-        shutil.rmtree(self.root, ignore_errors=True)
-        (self.root / "input").mkdir(parents=True)
-        (self.root / "input" / "a.root").write_text("a", encoding="utf-8")
-        (self.root / "input" / "b.root").write_text("b", encoding="utf-8")
-
-    def tearDown(self):
-        shutil.rmtree(self.root, ignore_errors=True)
-
-    def make_project(self):
-        project = Project.empty("execution test")
-        graph = project.workflow
-        source = graph.add_node(NODE_SPECS["root_files"], 0, 0)
-        source.properties["directory"] = str(self.root / "input")
-        stage = graph.add_node(NODE_SPECS["analysis_stage"], 100, 0)
-        stage.properties.update(
-            {
-                "executable": "/bin/cp",
-                "arguments": "{input} {output_dir}/{filename}",
-                "output_dir": str(self.root / "output"),
-                "run_mode": "per_file",
-            }
-        )
-        graph.add_edge(source.id, "out", stage.id, "in")
-        project.backend_options["local_workers"] = 2
-        return project
-
-    def test_local_file_fanout(self):
-        project = self.make_project()
-        LocalExecutor(lambda _message: None).run(project)
-        self.assertEqual(
-            sorted(path.name for path in (self.root / "output").glob("*.root")),
-            ["a.root", "b.root"],
-        )
-
-    def test_condor_export(self):
-        project = self.make_project()
-        dag = HTCondorExporter(lambda _message: None).export(
-            project, self.root / "condor"
-        )
-        self.assertTrue(dag.exists())
-        self.assertEqual(len(list((self.root / "condor").glob("*.sub"))), 2)
+def add(graph, node_type, title=None, **properties):
+    node = graph.add_node(NODE_SPECS[node_type], 0, 0, title)
+    node.properties.update(properties)
+    return node
 
 
-if __name__ == "__main__":
-    unittest.main()
+def connect(graph, first, second):
+    graph.add_edge(first.id, "out", second.id, "in")
+
+
+def test_local_executor_runs_dependency_graph(tmp_path: Path):
+    project = Project(
+        name="local",
+        workflow=Graph("workflow", "Workflow", "workflow"),
+        loader_programs={},
+        backend_options={"local_workers": 2, "lsf_queue": "s", "condor_universe": "vanilla"},
+    )
+    output = tmp_path / "result.txt"
+    first = add(
+        project.workflow,
+        "custom_command",
+        "First",
+        executable="/bin/sh",
+        argv=f"-c\nprintf first > {output}",
+    )
+    second = add(
+        project.workflow,
+        "custom_command",
+        "Second",
+        executable="/bin/sh",
+        argv=f"-c\nprintf second >> {output}",
+    )
+    connect(project.workflow, first, second)
+    LocalExecutor(lambda _: None).run(project, tmp_path)
+    assert output.read_text(encoding="utf-8") == "firstsecond"
+
+
+def test_condor_export_preserves_wait_dependencies(tmp_path: Path):
+    project = Project(
+        name="condor",
+        workflow=Graph("workflow", "Workflow", "workflow"),
+        loader_programs={},
+    )
+    add(project.workflow, "custom_command", "A", executable="/bin/echo", argv="A")
+    add(project.workflow, "custom_command", "B", executable="/bin/echo", argv="B")
+    wait = add(project.workflow, "wait", "Wait AB", wait_for="A\nB")
+    c = add(project.workflow, "custom_command", "C", executable="/bin/echo", argv="C")
+    connect(project.workflow, wait, c)
+
+    dag = HTCondorExporter(lambda _: None).export(project, tmp_path / "dag", tmp_path)
+    text = dag.read_text(encoding="utf-8")
+    assert text.count("JOB ") == 3
+    parent_lines = [line for line in text.splitlines() if line.startswith("PARENT")]
+    assert len(parent_lines) == 1
+    assert parent_lines[0].count("task_") == 3

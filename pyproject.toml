@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools>=69"]
+requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "analysis-studio"
-version = "0.1.0"
+version = "0.5.0"
 description = "A visual, backend-independent workflow editor for ROOT/Loader analyses"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -16,7 +16,9 @@ dependencies = ["PySide6>=6.6,<7"]
 dev = ["pytest>=8"]
 
 [project.scripts]
-analysis = "analysis.app:main"
+analysis-studio = "analysis_studio.app:main"
+# Compatibility alias for existing v0.1/v0.2 environments.
+belleflow = "analysis_studio.app:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

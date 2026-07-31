@@ -44,8 +44,8 @@ QToolTip {
 
 def main() -> int:
     application = QApplication(sys.argv)
-    application.setApplicationName("BelleFlow Studio")
-    application.setOrganizationName("BelleFlow")
+    application.setApplicationName("Analysis Studio")
+    application.setOrganizationName("Analysis Studio")
     application.setStyleSheet(STYLE)
     window = MainWindow()
     window.show()

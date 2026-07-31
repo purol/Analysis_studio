@@ -2,143 +2,103 @@ from __future__ import annotations
 
 from pathlib import Path
 import re
-import shlex
 
 from .model import Graph, Project, WorkflowNode
+from .validation import loader_declaration_for_node, validate_loader_graph
 
 
 def cpp_string(value: object) -> str:
     text = str(value)
-    return '"' + text.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n") + '"'
+    return (
+        '"'
+        + text.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
+        + '"'
+    )
 
 
 def safe_filename(value: str) -> str:
     result = re.sub(r"[^A-Za-z0-9_.-]+", "_", value).strip("._")
-    return result or "pipeline"
+    return result or "program"
 
 
-def cpp_string_vector(value: object) -> str:
-    labels = [
-        item.strip()
-        for item in re.split(r"[,\n]", str(value))
-        if item.strip()
-    ]
-    return "{" + ", ".join(cpp_string(item) for item in labels) + "}"
+def _loader_variable(graph: Graph, node: WorkflowNode) -> str:
+    declaration = loader_declaration_for_node(graph, node)
+    return str(declaration.properties["variable_name"])
 
 
-def loader_node_to_cpp(node: WorkflowNode) -> list[str]:
+def loader_node_to_cpp(graph: Graph, node: WorkflowNode) -> list[str]:
     p = node.properties
+    if node.type == "loader_decl":
+        loader_class = str(p.get("loader_class", "Loader"))
+        variable = str(p["variable_name"])
+        return [f"{loader_class} {variable}({cpp_string(p['branch'])});"]
+    if node.type == "raw_cpp":
+        return str(p["code"]).splitlines()
+
+    loader = _loader_variable(graph, node)
+    if node.type == "loader_end":
+        return [f"{loader}.end();"]
     if node.type == "load":
         return [
-            f"loader.Load({p['directory_cpp']}, {p['including_cpp']}, "
+            f"{loader}.Load({p['directory_cpp']}, {p['including_cpp']}, "
             f"{cpp_string(p['label'])});"
         ]
     if node.type == "load_with_cut":
         return [
-            f"loader.LoadWithCut({p['directory_cpp']}, {p['including_cpp']}, "
+            f"{loader}.LoadWithCut({p['directory_cpp']}, {p['including_cpp']}, "
             f"{cpp_string(p['label'])}, {cpp_string(p['condition'])});"
         ]
-    if node.type == "define_variable":
-        return [
-            f"loader.DefineNewVariable({cpp_string(p['equation'])}, "
-            f"{cpp_string(p['name'])});"
-        ]
-    if node.type == "conditional_pair_variable":
-        return [
-            f"loader.ConditionalPairDefineNewVariable({p['map_cpp']}, "
-            f"{int(p['order'])}, {cpp_string(p['name'])});"
-        ]
-    if node.type == "aggregate_variable":
-        variables = cpp_string_vector(p["expressions"])
-        operation = str(p["operation"])
-        if operation == "average":
-            return [f"loader.GetAverage({variables}, {cpp_string(p['name'])});"]
-        if operation == "stddev":
-            return [f"loader.GetStdDev({variables}, {cpp_string(p['name'])});"]
-        if operation == "diff":
-            return [
-                f"loader.GetDiff({variables}, {int(p['order'])}, "
-                f"{cpp_string(p['name'])});"
-            ]
-        if operation == "add":
-            return [
-                f"loader.GetAdd({variables}, {int(p['order'])}, "
-                f"{cpp_string(p['name'])});"
-            ]
-        raise ValueError(f"Unknown aggregate operation '{operation}'.")
-    if node.type == "set_samples":
-        return [
-            f"loader.SetMC({cpp_string_vector(p['mc'])});",
-            f"loader.SetData({cpp_string_vector(p['data'])});",
-            f"loader.SetSignal({cpp_string_vector(p['signal'])});",
-            f"loader.SetBackground({cpp_string_vector(p['background'])});",
-        ]
     if node.type == "cut":
-        return [f"loader.Cut({cpp_string(p['condition'])});"]
-    if node.type == "print_information":
-        return [f"loader.PrintInformation({cpp_string(p['message'])});"]
-    if node.type == "save_root":
-        return [
-            f"loader.PrintSeparateRootFile(({p['path_cpp']}).c_str(), "
-            f"{cpp_string(p['prefix'])}, {cpp_string(p['suffix'])});"
-        ]
+        return [f"{loader}.Cut({cpp_string(p['condition'])});"]
     if node.type == "draw_th1d":
         return [
-            "loader.DrawTH1D("
+            f"{loader}.DrawTH1D("
             f"{cpp_string(p['expression'])}, {cpp_string(p['title'])}, "
             f"{int(p['bins'])}, {float(p['minimum'])}, {float(p['maximum'])}, "
             f"{cpp_string(p['filename'])});"
         ]
-    if node.type == "draw_th2d":
-        return [
-            "loader.DrawTH2D("
-            f"{cpp_string(p['x_expression'])}, {cpp_string(p['y_expression'])}, "
-            f"{cpp_string(p['title'])}, "
-            f"{int(p['x_bins'])}, {float(p['x_minimum'])}, {float(p['x_maximum'])}, "
-            f"{int(p['y_bins'])}, {float(p['y_minimum'])}, {float(p['y_maximum'])}, "
-            f"{cpp_string(p['filename'])}, {cpp_string(p['draw_option'])});"
-        ]
-    if node.type == "draw_stack":
-        normalized = "true" if bool(p["normalized"]) else "false"
-        log_scale = "true" if bool(p["log_scale"]) else "false"
-        return [
-            "loader.DrawStack("
-            f"{cpp_string(p['expression'])}, {cpp_string(p['title'])}, "
-            f"{int(p['bins'])}, {float(p['minimum'])}, {float(p['maximum'])}, "
-            f"{cpp_string(p['filename'])}, {normalized}, {log_scale});"
-        ]
     if node.type == "print_root":
-        return [f"loader.PrintRootFile({cpp_string(p['filename'])});"]
+        return [f"{loader}.PrintRootFile({cpp_string(p['filename'])});"]
     if node.type == "bcs":
         return [
-            f"loader.BCS({cpp_string(p['expression'])}, {cpp_string(p['criteria'])});"
+            f"{loader}.BCS({cpp_string(p['expression'])}, "
+            f"{cpp_string(p['criteria'])});"
         ]
-    if node.type == "fastbdt_apply":
+    if node.type == "define_variable":
         return [
-            "loader.FastBDTApplication("
-            f"{cpp_string_vector(p['variables'])}, {cpp_string(p['classifier'])}, "
-            f"{cpp_string(p['branch'])});"
+            f"{loader}.DefineNewVariable({cpp_string(p['equation'])}, "
+            f"{cpp_string(p['name'])});"
         ]
-    if node.type == "raw_cpp":
-        return str(p["code"]).splitlines()
-    raise ValueError(f"No C++ generator exists for loader block '{node.type}'.")
+    raise ValueError(f"No C++ generator exists for Loader block '{node.type}'.")
 
 
 def generate_loader_cpp(graph: Graph) -> str:
-    errors = []
-    if graph.scope != "loader":
-        errors.append("Only Loader graphs can generate C++.")
+    errors = validate_loader_graph(graph)
     if errors:
         raise ValueError("\n".join(errors))
 
     statements: list[str] = []
+    current_root: str | None = None
+    root_number = {
+        node.id: index + 1 for index, node in enumerate(graph.ordered_roots())
+    }
     for node in graph.topological_order():
+        declaration = (
+            node if node.type == "loader_decl" else loader_declaration_for_node(graph, node)
+        )
+        if declaration.id != current_root:
+            current_root = declaration.id
+            statements.append(
+                f"    // Loader chain {root_number.get(declaration.id, '?')}: {declaration.title}"
+            )
         statements.append(f"    // {node.title}")
-        statements.extend(f"    {line}" if line else "" for line in loader_node_to_cpp(node))
+        statements.extend(
+            f"    {line}" if line else "" for line in loader_node_to_cpp(graph, node)
+        )
         statements.append("")
 
     body = "\n".join(statements).rstrip()
-    return f"""// Generated by BelleFlow Studio. Review before production use.
+    return f"""// Generated by Analysis Studio v0.5. Review before production use.
 #include <stdio.h>
 #include <string>
 #include <vector>
@@ -148,50 +108,70 @@ def generate_loader_cpp(graph: Graph) -> str:
 #include "Loader.h"
 
 int main(int argc, char* argv[]) {{
-    if (argc < 4) {{
-        fprintf(stderr, "Usage: %s <input-dir> <including-string> <output-dir>\\n", argv[0]);
-        return 2;
-    }}
-
-    Loader loader("tau_lfv");
-
 {body}
 
-    loader.end();
     return 0;
 }}
 """
 
 
-def command_preview(node: WorkflowNode) -> str:
-    if node.type in {"analysis_stage", "command_stage", "validator"}:
-        executable = shlex.quote(str(node.properties.get("executable", "")))
-        arguments = str(node.properties.get("arguments", ""))
-        return f"{executable} {arguments}".strip()
-    if node.type == "root_files":
-        return (
-            f"files: {node.properties.get('directory', '.')} / "
-            f"{node.properties.get('pattern', '*.root')}"
-        )
-    return node.title
-
-
 def generate_workflow_summary(project: Project) -> str:
-    lines = [
-        f"# {project.name}",
-        "",
-        "Generated workflow order:",
-        "",
-    ]
-    for index, node in enumerate(project.workflow.topological_order(), 1):
-        lines.append(f"{index}. **{node.title}** (`{node.type}`)")
-        lines.append(f"   - `{command_preview(node)}`")
+    graph = project.workflow
+    lines = [f"# {project.name}", "", "## Workflow", ""]
+    for index, root in enumerate(graph.ordered_roots(), start=1):
+        lines.append(f"- Start {index}: {root.title}")
+    if not graph.nodes:
+        lines.append("- Empty")
+    lines.extend(["", "### Blocks", ""])
+    for node in graph.topological_order():
+        regions = graph.regions_for_node(node.id)
+        suffix = (
+            " — inside `" + " → ".join(region.title for region in regions) + "`"
+            if regions
+            else ""
+        )
+        if node.type == "loader_execute":
+            detail = f"Loader Execute [{node.properties.get('loader_program', '')}]"
+        elif node.type == "custom_command":
+            detail = f"Custom Command ({node.properties.get('executable', '')})"
+        else:
+            waits = str(node.properties.get("wait_for", "")).replace("\n", ", ")
+            detail = f"Wait [{waits or 'incoming blocks'}]"
+        lines.append(f"- {node.title}: {detail}{suffix}")
+
+    lines.extend(["", "### For Each regions", ""])
+    if not graph.foreach_regions:
+        lines.append("- None")
+    for region in graph.foreach_regions:
+        raw_tokens = region.properties.get("tokens", [])
+        token_names = [
+            str(item.get("name", "")).strip()
+            for item in raw_tokens
+            if isinstance(item, dict) and str(item.get("name", "")).strip()
+        ] if isinstance(raw_tokens, list) else []
+        variables = ", ".join("{" + name + "}" for name in token_names) or "none"
+        parent = (
+            graph.region(region.parent_region_id).title
+            if region.parent_region_id
+            else "top level"
+        )
+        lines.append(
+            f"- {region.title}: {region.properties.get('source_mode', '')}; "
+            f"parent: {parent}; {len(region.member_node_ids)} direct block(s); "
+            f"{len(graph.child_regions(region.id))} child region(s); variables: {variables}"
+        )
+
+    lines.extend(["", "## Loader programs", ""])
+    for loader_graph in project.loader_programs.values():
+        lines.append(f"- `{loader_graph.id}`: {loader_graph.name}")
     lines.extend(
         [
             "",
-            "The `.bflow.json` file is the authoritative workflow definition.",
-            "Open it in BelleFlow Studio to run locally, submit through LSF, or "
-            "export an HTCondor DAG.",
+            "The `.astudio.json` file is the authoritative backend-independent definition.",
+            "Workflow lines express dependencies. For Each regions repeat direct blocks",
+            "and nested child regions inside their border. Loader-program lines express",
+            "C++ statement order.",
+            "Start-number badges order disconnected roots without creating a dependency.",
             "",
         ]
     )
@@ -203,11 +183,13 @@ def generate_project(project: Project, output_directory: str | Path) -> list[Pat
     output.mkdir(parents=True, exist_ok=True)
     written: list[Path] = []
 
-    project_file = output / f"{safe_filename(project.name)}.bflow.json"
+    project_file = output / f"{safe_filename(project.name)}.astudio.json"
     project.save(project_file)
     written.append(project_file)
 
-    for graph in project.loader_graphs.values():
+    for graph in project.loader_programs.values():
+        if not graph.nodes:
+            continue
         path = output / f"{safe_filename(graph.name)}.cc"
         path.write_text(generate_loader_cpp(graph), encoding="utf-8")
         written.append(path)

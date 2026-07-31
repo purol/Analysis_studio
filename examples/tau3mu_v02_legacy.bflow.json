@@ -1,0 +1,359 @@
+{
+  "name": "Belle tau analysis example",
+  "workflow": {
+    "id": "workflow",
+    "name": "Workflow",
+    "scope": "workflow",
+    "nodes": [
+      {
+        "id": "node_c7b9a7b461c2",
+        "type": "custom_command",
+        "title": "Prepare calibration",
+        "x": 0,
+        "y": 0,
+        "properties": {
+          "executable": "/bin/echo",
+          "argv": "prepare calibration",
+          "working_directory": "",
+          "output_dir": "",
+          "job_name": "Prepare"
+        }
+      },
+      {
+        "id": "node_4fe1ed30bdaa",
+        "type": "for_each",
+        "title": "Analyze ROOT files",
+        "x": 0,
+        "y": 220,
+        "properties": {
+          "source_mode": "root_files",
+          "body_graph": "root_file_body",
+          "directory": "./Ntuple",
+          "pattern": "*.root",
+          "csv_file": "./items.csv",
+          "delimiter": ",",
+          "has_header": true,
+          "values": "value_a\nvalue_b",
+          "variable_name": "item",
+          "max_parallel": 0
+        }
+      },
+      {
+        "id": "node_68c926aa5b1c",
+        "type": "wait",
+        "title": "Wait for preparation and analysis",
+        "x": 330,
+        "y": 100,
+        "properties": {
+          "wait_for": "Prepare calibration\nAnalyze ROOT files"
+        }
+      },
+      {
+        "id": "node_0f1f39d8d24a",
+        "type": "custom_command",
+        "title": "Run fit_M_deltaE",
+        "x": 650,
+        "y": 100,
+        "properties": {
+          "executable": "./bin/fit_M_deltaE",
+          "argv": "{project_dir}/results",
+          "working_directory": "",
+          "output_dir": "{project_dir}/fit",
+          "job_name": "Fit2D"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "edge_e71d6a0e8f35",
+        "source": "node_68c926aa5b1c",
+        "source_port": "out",
+        "target": "node_0f1f39d8d24a",
+        "target_port": "in"
+      }
+    ]
+  },
+  "loader_programs": {
+    "analysis_program": {
+      "id": "analysis_program",
+      "name": "Analysis_main",
+      "scope": "loader",
+      "nodes": [
+        {
+          "id": "node_19af783a3b77",
+          "type": "loader_decl",
+          "title": "Primary Loader",
+          "x": 0,
+          "y": 0,
+          "properties": {
+            "variable_name": "loader",
+            "branch": "tau_lfv",
+            "loader_class": "Loader"
+          }
+        },
+        {
+          "id": "node_41c16ad9e6a2",
+          "type": "load",
+          "title": "Load signal",
+          "x": 260,
+          "y": 0,
+          "properties": {
+            "loader_ref": "node_19af783a3b77",
+            "directory_cpp": "argv[1]",
+            "including_cpp": "argv[2]",
+            "label": "SIGNAL"
+          }
+        },
+        {
+          "id": "node_5e9c0c5d79f8",
+          "type": "load_with_cut",
+          "title": "Load background",
+          "x": 520,
+          "y": 0,
+          "properties": {
+            "loader_ref": "node_19af783a3b77",
+            "directory_cpp": "argv[3]",
+            "including_cpp": "argv[4]",
+            "label": "BACKGROUND",
+            "condition": "M > 1.5"
+          }
+        },
+        {
+          "id": "node_41527c1eb067",
+          "type": "cut",
+          "title": "Signal region cut",
+          "x": 780,
+          "y": 0,
+          "properties": {
+            "loader_ref": "node_19af783a3b77",
+            "condition": "deltaE > -0.3 && deltaE < 0.2"
+          }
+        },
+        {
+          "id": "node_9240ba2801a8",
+          "type": "define_variable",
+          "title": "Define absDeltaE",
+          "x": 1040,
+          "y": 0,
+          "properties": {
+            "loader_ref": "node_19af783a3b77",
+            "equation": "abs(deltaE)",
+            "name": "absDeltaE"
+          }
+        },
+        {
+          "id": "node_fe7b4cf0f91b",
+          "type": "draw_th1d",
+          "title": "Draw M",
+          "x": 1300,
+          "y": 0,
+          "properties": {
+            "loader_ref": "node_19af783a3b77",
+            "expression": "M",
+            "title": ";M [GeV];Events",
+            "bins": 50,
+            "minimum": 1.6,
+            "maximum": 1.9,
+            "filename": "M.png"
+          }
+        },
+        {
+          "id": "node_90a50b66592e",
+          "type": "print_root",
+          "title": "Write selected ROOT",
+          "x": 1560,
+          "y": 0,
+          "properties": {
+            "loader_ref": "node_19af783a3b77",
+            "filename": "selected.root"
+          }
+        },
+        {
+          "id": "node_c0c874deed6a",
+          "type": "loader_end",
+          "title": "End primary Loader",
+          "x": 1820,
+          "y": 0,
+          "properties": {
+            "loader_ref": "node_19af783a3b77"
+          }
+        },
+        {
+          "id": "node_358c5b49ecf2",
+          "type": "loader_decl",
+          "title": "Summary Loader",
+          "x": 2080,
+          "y": 0,
+          "properties": {
+            "variable_name": "summary_loader",
+            "branch": "summary_tree",
+            "loader_class": "Loader"
+          }
+        },
+        {
+          "id": "node_8fe9b0ea8b1c",
+          "type": "load",
+          "title": "Load selected output",
+          "x": 2340,
+          "y": 0,
+          "properties": {
+            "loader_ref": "node_358c5b49ecf2",
+            "directory_cpp": "argv[5]",
+            "including_cpp": "\".root\"",
+            "label": "SELECTED"
+          }
+        },
+        {
+          "id": "node_8a2b29503eb5",
+          "type": "bcs",
+          "title": "Best candidate",
+          "x": 2600,
+          "y": 0,
+          "properties": {
+            "loader_ref": "node_358c5b49ecf2",
+            "expression": "chiProb",
+            "criteria": "highest"
+          }
+        },
+        {
+          "id": "node_4429ec784aeb",
+          "type": "raw_cpp",
+          "title": "Custom report",
+          "x": 2860,
+          "y": 0,
+          "properties": {
+            "code": "// Insert additional C++ statements here."
+          }
+        },
+        {
+          "id": "node_335dc2f2a067",
+          "type": "loader_end",
+          "title": "End summary Loader",
+          "x": 3120,
+          "y": 0,
+          "properties": {
+            "loader_ref": "node_358c5b49ecf2"
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "edge_aad4c425d023",
+          "source": "node_19af783a3b77",
+          "source_port": "out",
+          "target": "node_41c16ad9e6a2",
+          "target_port": "in"
+        },
+        {
+          "id": "edge_200040aa96c5",
+          "source": "node_41c16ad9e6a2",
+          "source_port": "out",
+          "target": "node_5e9c0c5d79f8",
+          "target_port": "in"
+        },
+        {
+          "id": "edge_9b87c4ba773f",
+          "source": "node_5e9c0c5d79f8",
+          "source_port": "out",
+          "target": "node_41527c1eb067",
+          "target_port": "in"
+        },
+        {
+          "id": "edge_8e8ab938eb79",
+          "source": "node_41527c1eb067",
+          "source_port": "out",
+          "target": "node_9240ba2801a8",
+          "target_port": "in"
+        },
+        {
+          "id": "edge_7213da6fddcc",
+          "source": "node_9240ba2801a8",
+          "source_port": "out",
+          "target": "node_fe7b4cf0f91b",
+          "target_port": "in"
+        },
+        {
+          "id": "edge_90a6998cf6f3",
+          "source": "node_fe7b4cf0f91b",
+          "source_port": "out",
+          "target": "node_90a50b66592e",
+          "target_port": "in"
+        },
+        {
+          "id": "edge_b054f2cf2649",
+          "source": "node_90a50b66592e",
+          "source_port": "out",
+          "target": "node_c0c874deed6a",
+          "target_port": "in"
+        },
+        {
+          "id": "edge_325746572d22",
+          "source": "node_c0c874deed6a",
+          "source_port": "out",
+          "target": "node_358c5b49ecf2",
+          "target_port": "in"
+        },
+        {
+          "id": "edge_ef90f171b16c",
+          "source": "node_358c5b49ecf2",
+          "source_port": "out",
+          "target": "node_8fe9b0ea8b1c",
+          "target_port": "in"
+        },
+        {
+          "id": "edge_26aca6754ae9",
+          "source": "node_8fe9b0ea8b1c",
+          "source_port": "out",
+          "target": "node_8a2b29503eb5",
+          "target_port": "in"
+        },
+        {
+          "id": "edge_349644a864ef",
+          "source": "node_8a2b29503eb5",
+          "source_port": "out",
+          "target": "node_4429ec784aeb",
+          "target_port": "in"
+        },
+        {
+          "id": "edge_ddf6e5908f5b",
+          "source": "node_4429ec784aeb",
+          "source_port": "out",
+          "target": "node_335dc2f2a067",
+          "target_port": "in"
+        }
+      ]
+    }
+  },
+  "foreach_graphs": {
+    "root_file_body": {
+      "id": "root_file_body",
+      "name": "ROOT file body",
+      "scope": "workflow",
+      "nodes": [
+        {
+          "id": "node_7fd8b8047fc8",
+          "type": "loader_execute",
+          "title": "Run Analysis_main",
+          "x": 0,
+          "y": 0,
+          "properties": {
+            "loader_program": "analysis_program",
+            "executable": "./bin/Analysis_main",
+            "argv": "{directory}\n{filename}\n{directory}\n{filename}\n{project_dir}/results/{stem}",
+            "working_directory": "",
+            "output_dir": "{project_dir}/results/{stem}",
+            "job_name": "Analyze_{stem}"
+          }
+        }
+      ],
+      "edges": []
+    }
+  },
+  "backend": "local",
+  "backend_options": {
+    "local_workers": 4,
+    "lsf_queue": "s",
+    "condor_universe": "vanilla"
+  },
+  "version": 2
+}
