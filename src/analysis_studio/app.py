@@ -2,10 +2,6 @@ from __future__ import annotations
 
 import sys
 
-from PySide6.QtWidgets import QApplication
-
-from .main_window import MainWindow
-
 
 STYLE = """
 QMainWindow, QWidget {
@@ -43,6 +39,20 @@ QToolTip {
 
 
 def main() -> int:
+    try:
+        from PySide6.QtWidgets import QApplication
+        from .main_window import MainWindow
+    except ModuleNotFoundError as exc:
+        if exc.name and exc.name.startswith("PySide6"):
+            print(
+                "Analysis Studio GUI requires PySide6. Install the GUI extra with:\n"
+                "  python3 -m pip install 'analysis-studio[gui]'\n"
+                "The headless analysis-studio-cli command does not require PySide6.",
+                file=sys.stderr,
+            )
+            return 2
+        raise
+
     application = QApplication(sys.argv)
     application.setApplicationName("Analysis Studio")
     application.setOrganizationName("Analysis Studio")

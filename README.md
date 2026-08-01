@@ -11,22 +11,29 @@ easy to mix together in shell scripts:
 
 ## Installation
 
-Use Python 3.10 or newer:
+### GUI computer
 
 ```bash
-cd analysis_studio
 python3 -m venv .venv
 source .venv/bin/activate
 python3 -m pip install --upgrade pip
-python3 -m pip install -e .
+python3 -m pip install -e '.[gui]'
 analysis-studio
 ```
 
-On a machine with no display (for example, a login node), start the GUI through
-X11 forwarding, a remote desktop, or run it on your local computer. The
-generated JSON and C++ files remain portable.
+### Headless server
+
+The CLI has no Qt/PySide6 dependency:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python3 -m pip install -e .
+analysis-studio-cli --help
+```
 
 ## License
 
-Analysis Studio source code is released under the MIT License. PySide6 and Qt
-remain under their respective licenses.
+Analysis Studio source is MIT licensed. PySide6/Qt is a separate optional GUI
+dependency available under its own open-source or commercial terms. The CLI and
+saved JSON format do not depend on Qt.

@@ -1,0 +1,93 @@
+{
+  "name": "Nested For Each example",
+  "workflow": {
+    "id": "workflow",
+    "name": "Workflow",
+    "scope": "workflow",
+    "nodes": [
+      {
+        "id": "node_80877bcba7ca",
+        "type": "custom_command",
+        "title": "Run sample and mass",
+        "x": 260,
+        "y": 190,
+        "properties": {
+          "executable": "/bin/echo",
+          "argv": "--sample\n{sample}\n--mass\n{mass}",
+          "working_directory": "",
+          "output_dir": "",
+          "job_name": "Analyze_{sample}_{mass}"
+        }
+      }
+    ],
+    "edges": [],
+    "root_order": [
+      "node_80877bcba7ca"
+    ],
+    "foreach_regions": [
+      {
+        "id": "foreach_a9d6012bf22c",
+        "title": "Samples",
+        "x": 40,
+        "y": 40,
+        "width": 760,
+        "height": 500,
+        "properties": {
+          "source_mode": "values",
+          "directory": "./Ntuple",
+          "pattern": "*.root",
+          "csv_file": "./items.csv",
+          "delimiter": ",",
+          "has_header": true,
+          "values": "signal\nbackground",
+          "max_parallel": 2,
+          "tokens": [
+            {
+              "name": "sample",
+              "source": "value"
+            }
+          ]
+        },
+        "member_node_ids": [],
+        "parent_region_id": null
+      },
+      {
+        "id": "foreach_a4e7bf5dd399",
+        "title": "Mass points",
+        "x": 150,
+        "y": 120,
+        "width": 500,
+        "height": 300,
+        "properties": {
+          "source_mode": "values",
+          "directory": "./Ntuple",
+          "pattern": "*.root",
+          "csv_file": "./items.csv",
+          "delimiter": ",",
+          "has_header": true,
+          "values": "1.0\n2.0",
+          "max_parallel": 2,
+          "tokens": [
+            {
+              "name": "mass",
+              "source": "value"
+            }
+          ]
+        },
+        "member_node_ids": [
+          "node_80877bcba7ca"
+        ],
+        "parent_region_id": "foreach_a9d6012bf22c"
+      }
+    ]
+  },
+  "loader_programs": {},
+  "foreach_graphs": {},
+  "backend": "local",
+  "backend_options": {
+    "local_workers": 4,
+    "lsf_queue": "s",
+    "condor_universe": "vanilla"
+  },
+  "version": 6
+}

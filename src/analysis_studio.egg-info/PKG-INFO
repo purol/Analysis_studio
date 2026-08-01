@@ -1,0 +1,284 @@
+Metadata-Version: 2.4
+Name: analysis-studio
+Version: 0.7.0
+Summary: A visual, backend-independent workflow editor for ROOT/Loader analyses
+Author: Junewoo Park
+License: MIT
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Provides-Extra: gui
+Requires-Dist: PySide6<7,>=6.6; extra == "gui"
+Provides-Extra: dev
+Requires-Dist: pytest>=8; extra == "dev"
+Dynamic: license-file
+
+# Analysis Studio 0.7
+
+Analysis Studio is a PySide6 block editor for ROOT/Loader analyses and their
+Local, LSF, or HTCondor execution workflows. The editable source of truth is a
+plain `*.astudio.json` project file. Generated C++, compiled programs, logs, and
+backend exports are derived artifacts kept beside that JSON file.
+
+## Installation
+
+### GUI computer
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python3 -m pip install --upgrade pip
+python3 -m pip install -e '.[gui]'
+analysis-studio
+```
+
+### Headless server
+
+The CLI has no Qt/PySide6 dependency:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python3 -m pip install -e .
+analysis-studio-cli --help
+```
+
+The compatibility GUI command `belleflow` is still available.
+
+## Project directory
+
+The directory containing the JSON file is the **project root**. Project-owned
+source files must use paths relative to this directory.
+
+```text
+my_analysis/
+├── my_analysis.astudio.json     # saved project definition
+├── code/                        # user-written C++, Python, shell, etc.
+│   ├── fit_M_deltaE.cc
+│   └── prepare.py
+├── generated/                   # Generate Code output
+│   ├── Analysis_main.cc
+│   └── WORKFLOW.md
+├── bin/                         # Compile output
+│   ├── Analysis_main
+│   ├── fit_M_deltaE
+│   └── prepare
+└── .analysis-studio/            # manifests and LSF logs
+```
+
+A project can therefore be copied or compressed as one directory and opened on
+another machine. Re-run **Generate Code** and **Compile** after moving it;
+compiled binaries themselves may not be portable across operating systems or
+architectures.
+
+Input datasets may still live outside the project. Prefer environment variables
+or machine-specific relative mount points for those paths. Custom Command source
+code, however, must remain inside the project root. Absolute source paths and
+`..` escapes are validation errors, including symlinks that resolve outside the
+project.
+
+## Save, Generate Code, Compile, Run
+
+The four stages are intentionally separate.
+
+1. **Save** writes only the complete project JSON.
+2. **Generate Code** reads the saved JSON and writes Loader C++ plus
+   `generated/WORKFLOW.md`. It does not create or rewrite a project JSON.
+3. **Compile** creates project-local artifacts in `bin/`.
+4. **Run / Submit** executes the compiled artifacts using the selected backend.
+
+Generation and build manifests contain the saved JSON hash. Build manifests also
+contain hashes of project-local source inputs. If the JSON, generated C++, a
+Python/shell source, or an additional C++ source changes, Run/Submit asks the
+user to regenerate or recompile rather than silently using stale output.
+
+## Loader program compilation
+
+One Loader program tab produces one generated C++ source and one executable:
+
+```text
+Loader program: Analysis Main
+generated/Analysis_Main.cc
+bin/Analysis_Main
+```
+
+Loader C++ is compiled using:
+
+- `root-config --cflags` and `root-config --ldflags --glibs`;
+- `Belle2_analysis/include` and `Belle2_analysis/FastBDT/include`;
+- `Belle2_analysis/lib`;
+- the libraries listed in **Workflow → Build Settings**.
+
+Analysis Studio searches for `Belle2_analysis` in this order:
+
+1. the project directory;
+2. the Analysis Studio installation/repository directory.
+
+This supports adding it to the Analysis Studio repository as a git submodule:
+
+```bash
+git submodule add <repository> Belle2_analysis
+git submodule update --init --recursive
+```
+
+The FastBDT submodule inside `Belle2_analysis` must also be initialized and its
+required library built according to that framework's build process.
+
+## Custom Command: Code / script
+
+`Custom Command` no longer points to an arbitrary executable. It identifies a
+project-local **Code / script** and a **Program name**. Compile creates
+`bin/<Program name>`.
+
+### Automatic mode
+
+- `.cc`, `.cpp`, `.cxx`, `.c++`: compile with the configured C++ compiler;
+- `.py`, `.sh`, and other non-C++ files: copy into `bin/` and mark executable;
+- missing Python/shell shebangs are supplied during the copy.
+
+For ordinary standalone C++, disable **Use ROOT / Belle2_analysis**. For analysis
+C++, keep it enabled and optionally supply per-block additional sources,
+compile flags, and link flags.
+
+### Unknown or unusual libraries
+
+Analysis Studio cannot infer every third-party library. Three levels of control
+are provided:
+
+1. project-wide compiler, common flags, Loader libraries, and framework path in
+   **Build Settings**;
+2. per-Custom-Command additional C++ sources, compile flags, and link flags;
+3. **Custom build mode**, which runs the user-provided shell build command.
+
+Custom build commands receive:
+
+```text
+AS_SOURCE
+AS_OUTPUT
+AS_PROJECT_DIR
+AS_BELLE2_ANALYSIS
+```
+
+The command must create `AS_OUTPUT`. This allows use of Make, CMake, experiment
+setup scripts, or specialized library flags without hard-coding them into
+Analysis Studio.
+
+For Each variables are runtime values. They may be used in `argv`, working
+folder, output folder, and job name, but not in Code/script, Program name, or
+compile settings. A program is built once and invoked many times with different
+arguments.
+
+## Headless CLI
+
+All post-editing stages work without a display server:
+
+```bash
+analysis-studio-cli validate my_analysis.astudio.json
+analysis-studio-cli generate my_analysis.astudio.json
+analysis-studio-cli compile my_analysis.astudio.json
+analysis-studio-cli run my_analysis.astudio.json --backend local
+analysis-studio-cli submit my_analysis.astudio.json --backend lsf
+analysis-studio-cli export-condor my_analysis.astudio.json --output condor
+```
+
+Run the whole pipeline with:
+
+```bash
+analysis-studio-cli pipeline my_analysis.astudio.json --backend lsf
+```
+
+The JSON remains human-readable and can be manually edited on a server when the
+GUI is unavailable, although using the GUI is safer for graph editing.
+
+## Undo and redo
+
+Graph and property edits are stored as project snapshots:
+
+```text
+Ctrl+Z  Undo
+Ctrl+Y  Redo
+```
+
+This covers block/region creation, movement, connection, deletion, property
+changes, Loader program creation/rename/deletion, and block paste. The history
+is limited to the current application session.
+
+## Edges
+
+An edge is one unfilled cubic Bézier path plus a separate arrowhead item. The
+arrow indicates execution/dependency direction. Separating the arrow from the
+path avoids the unwanted straight chord that Qt can draw when an open Bézier
+path is filled.
+
+## Per-block backend settings
+
+Every Loader Execute and Custom Command block has:
+
+- **Local maximum parallel commands**;
+- **LSF queue override**;
+- **LSF maximum active jobs**;
+- **LSF extra options**.
+
+A value of zero uses the corresponding project-wide setting. This allows short
+blocks to use a short queue, expensive fits to use a long queue, and high-volume
+For Each stages to have their own submission cap.
+
+Analysis Studio manages `-q`, `-J`, `-o`, `-e`, `-cwd`, and dependency behavior.
+Those options, especially `-w`, cannot be overridden in the extra-options field.
+
+## Large LSF workflows and failures
+
+Analysis Studio no longer emits a `bsub -w` expression containing every parent
+job ID. Instead, its LSF controller:
+
+1. expands the workflow internally;
+2. submits only dependency-ready jobs;
+3. polls active jobs with `bjobs` in bounded chunks;
+4. marks a task complete only when LSF reports `DONE`;
+5. submits downstream tasks only after every parent succeeded;
+6. stops immediately on `EXIT`, `ZOMBI`, `UNKWN`, or a persistently missing job;
+7. optionally cancels the remaining active jobs;
+8. never submits blocked downstream jobs.
+
+Project-wide and per-block active-job limits prevent a For Each with thousands
+of files from flooding LSF at once. No dependency list is placed on a `bsub`
+command line.
+
+The GUI window or `analysis-studio-cli submit` process is the controller and must
+remain running while the workflow is active. On a remote server, run it under
+`tmux`, `screen`, or another persistent session. Submitted jobs continue if the
+controller disappears, but later dependent jobs cannot be submitted until the
+controller is run again; automatic resume is not yet implemented.
+
+## For Each variables and nested loops
+
+For Each does not provide hidden tokens. The user explicitly defines names such
+as `input_file`, `sample`, or `mass` and selects the source value for each.
+Only those names are available in the enclosed blocks, with previews and Copy
+buttons shown in the property panel.
+
+Nested regions inherit explicitly defined outer variables. Redefining an outer
+name in an inner region is rejected. Source-specific properties are shown only
+for the selected source type: ROOT files, CSV rows, or explicit values.
+
+## Examples
+
+A fully portable Generate→Compile→Run example:
+
+```text
+examples/portable_v07/portable_v07.astudio.json
+```
+
+A nested For Each example:
+
+```text
+examples/nested_v07/nested_v07.astudio.json
+```
+
+Files with v0.2–v0.6 names remain as migration examples.
+
+## License
+
+Analysis Studio source is MIT licensed. PySide6/Qt is a separate optional GUI
+dependency available under its own open-source or commercial terms. The CLI and
+saved JSON format do not depend on Qt.

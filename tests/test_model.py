@@ -98,7 +98,7 @@ def test_v2_hidden_for_each_migrates_to_visible_region():
         },
     }
     project = Project.from_dict(data)
-    assert project.version == 5
+    assert project.version == 7
     assert [node.title for node in project.workflow.nodes] == ["Analyze"]
     assert len(project.workflow.foreach_regions) == 1
     assert project.workflow.foreach_regions[0].member_node_ids == ["execute"]
@@ -162,7 +162,7 @@ def test_v1_per_file_workflow_migrates_through_visible_region():
         },
     }
     project = Project.from_dict(data)
-    assert project.version == 5
+    assert project.version == 7
     assert project.workflow.nodes[0].type == "loader_execute"
     assert project.workflow.nodes[0].properties["argv"] == "{directory}\n{filename}"
     assert project.workflow.foreach_regions[0].properties["tokens"] == [
@@ -214,6 +214,80 @@ def test_v4_region_geometry_migrates_to_nested_parent():
         "foreach_graphs": {},
     }
     project = Project.from_dict(data)
-    assert project.version == 5
+    assert project.version == 7
     assert project.workflow.region("outer").parent_region_id is None
     assert project.workflow.region("inner").parent_region_id == "outer"
+
+
+def test_empty_project_starts_without_loader_programs():
+    project = Project.empty()
+    assert project.loader_programs == {}
+    assert project.workflow.scope == "workflow"
+
+
+def test_v5_loader_execute_executable_is_removed_during_migration():
+    data = {
+        "name": "legacy-v5",
+        "version": 5,
+        "workflow": {
+            "id": "workflow",
+            "name": "Workflow",
+            "scope": "workflow",
+            "nodes": [
+                {
+                    "id": "run",
+                    "type": "loader_execute",
+                    "title": "Run",
+                    "properties": {
+                        "loader_program": "loader",
+                        "executable": "/old/manual/path",
+                        "argv": "",
+                        "working_directory": "",
+                        "output_dir": "",
+                        "job_name": "Run",
+                    },
+                }
+            ],
+            "edges": [],
+        },
+        "loader_programs": {
+            "loader": {
+                "id": "loader",
+                "name": "My Loader",
+                "scope": "loader",
+                "nodes": [],
+                "edges": [],
+            }
+        },
+    }
+    project = Project.from_dict(data)
+    assert project.version == 7
+    assert "executable" not in project.workflow.node("run").properties
+
+
+def test_loader_program_can_be_renamed_and_deleted_with_references_cleared():
+    project = Project.empty()
+    graph = Graph("loader_a", "Loader A", "loader")
+    project.loader_programs[graph.id] = graph
+    execute = project.workflow.add_node(NODE_SPECS["loader_execute"], 0, 0)
+    execute.properties["loader_program"] = graph.id
+
+    project.rename_loader_program(graph.id, "Renamed Loader")
+    assert graph.name == "Renamed Loader"
+
+    cleared = project.remove_loader_program(graph.id)
+    assert cleared == [execute.id]
+    assert project.loader_programs == {}
+    assert execute.properties["loader_program"] == ""
+
+
+def test_loader_program_generated_names_must_be_unique():
+    project = Project.empty()
+    first = project.create_loader_program("Analysis Main")
+    assert first.name == "Analysis Main"
+    try:
+        project.create_loader_program("Analysis_Main")
+    except ValueError as exc:
+        assert "generated executable name" in str(exc)
+    else:
+        raise AssertionError("Expected generated-name collision to be rejected")

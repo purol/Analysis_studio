@@ -21,45 +21,52 @@ def new_id(prefix: str) -> str:
     return f"{prefix}_{digest}"
 
 
+def safe_program_name(value: str, fallback: str = "loader_program") -> str:
+    """Return the deterministic source/executable stem for a Loader program."""
+    result = re.sub(r"[^A-Za-z0-9_.-]+", "_", str(value)).strip("._")
+    return result or fallback
+
+
+def loader_source_filename(graph: "Graph") -> str:
+    return f"{safe_program_name(graph.name)}.cc"
+
+
+def loader_executable_path(graph: "Graph") -> str:
+    return f"./bin/{safe_program_name(graph.name)}"
+
+
+def custom_command_output_name(node: "WorkflowNode") -> str:
+    requested = str(node.properties.get("output_name", "")).strip()
+    if requested:
+        return safe_program_name(requested, "custom_command")
+    source = Path(str(node.properties.get("code", "custom_command")))
+    return safe_program_name(source.stem, "custom_command")
+
+
+def custom_executable_path(node: "WorkflowNode") -> str:
+    return f"./bin/{custom_command_output_name(node)}"
+
+
 @dataclass(frozen=True)
 class PropertySpec:
-    """ Parameter in block """
-
-    name: str # Internal key used in JSON
-    label: str # Name displayed in the GUI
-
-    kind: str = "text" # text, choice, int, float, bool, or path
+    name: str
+    label: str
+    kind: str = "text"
     default: object = ""
-
-    # Used only when kind == "choice"
     choices: tuple[str, ...] = ()
-
-    # Option to write multiple line
     multiline: bool = False
-
     help: str = ""
 
 
 @dataclass(frozen=True)
 class NodeSpec:
-    """ Block in GUI """
-
-    key: str # Internal key used in JSON
-    label: str # Name displayed in the GUI
-
-    # Group upder which the block appears in the block palette
+    key: str
+    label: str
     category: str
-
-    # Scope in which the block can be used
-    # Currently either "workflow" or "loader"
     scope: str
-
     color: str
-
-    # Names of the input and output ports in the block
     inputs: tuple[str, ...] = ("in",)
     outputs: tuple[str, ...] = ("out",)
-
     properties: tuple[PropertySpec, ...] = ()
 
     def defaults(self) -> dict[str, object]:
@@ -68,21 +75,11 @@ class NodeSpec:
 
 @dataclass
 class WorkflowNode:
-    """ block instance in a workflow graph """
-
-    # Unique identifier
     id: str
-
-    # Block type corresponding to NodeSpec.key
     type: str
-
-    # Editable name displayed in the block header
     title: str
-
-    # Position of the block
     x: float = 0.0
     y: float = 0.0
-    
     properties: dict[str, object] = field(default_factory=dict)
 
 
@@ -534,27 +531,90 @@ class Project:
         default_factory=lambda: {
             "local_workers": 4,
             "lsf_queue": "s",
+            "lsf_poll_seconds": 10,
+            "lsf_max_inflight": 500,
+            "lsf_cancel_on_failure": True,
             "condor_universe": "vanilla",
         }
     )
-    version: int = 5
+    build_options: dict[str, object] = field(
+        default_factory=lambda: {
+            "compiler": "g++",
+            "cpp_standard": "c++17",
+            "belle2_analysis_dir": "Belle2_analysis",
+            "common_compile_flags": "",
+            "common_link_flags": "",
+            "loader_libraries": (
+                "-lRooFit\n-lRooStats\n-lRooFitCore\n-lMinuit\n"
+                "-lFastBDT_static"
+            ),
+        }
+    )
+    version: int = 7
 
     @classmethod
     def empty(cls, name: str = "Untitled analysis") -> "Project":
-        program = Graph(
-            id="main_loader_program",
-            name="Main Loader program",
-            scope="loader",
-        )
         return cls(
             name=name,
             workflow=Graph(id="workflow", name="Workflow", scope="workflow"),
-            loader_programs={program.id: program},
+            loader_programs={},
         )
 
     @property
     def loader_graphs(self) -> dict[str, Graph]:
         return self.loader_programs
+
+    def create_loader_program(self, name: str) -> Graph:
+        program_name = name.strip()
+        if not program_name:
+            raise ValueError("Loader program name cannot be empty.")
+        safe_name = safe_program_name(program_name)
+        if any(
+            other.name == program_name
+            or safe_program_name(other.name) == safe_name
+            for other in self.loader_programs.values()
+        ):
+            raise ValueError(
+                f"Loader program name '{program_name}' conflicts with an existing "
+                "program or generated executable name."
+            )
+        graph_id = "loader_program_" + new_id("graph").split("_", 1)[1]
+        graph = Graph(id=graph_id, name=program_name, scope="loader")
+        self.loader_programs[graph.id] = graph
+        return graph
+
+    def rename_loader_program(self, program_id: str, new_name: str) -> Graph:
+        graph = self.loader_programs[program_id]
+        name = new_name.strip()
+        if not name:
+            raise ValueError("Loader program name cannot be empty.")
+        safe_name = safe_program_name(name)
+        if any(
+            other.id != program_id
+            and (other.name == name or safe_program_name(other.name) == safe_name)
+            for other in self.loader_programs.values()
+        ):
+            raise ValueError(
+                f"Loader program name '{name}' conflicts with an existing program "
+                "or generated executable name."
+            )
+        graph.name = name
+        return graph
+
+    def remove_loader_program(self, program_id: str) -> list[str]:
+        """Delete a Loader program and clear workflow references to it."""
+        if program_id not in self.loader_programs:
+            raise KeyError(program_id)
+        cleared: list[str] = []
+        for node in self.workflow.nodes:
+            if (
+                node.type == "loader_execute"
+                and str(node.properties.get("loader_program", "")) == program_id
+            ):
+                node.properties["loader_program"] = ""
+                cleared.append(node.id)
+        del self.loader_programs[program_id]
+        return cleared
 
     def to_dict(self) -> dict[str, object]:
         data = asdict(self)
@@ -595,6 +655,7 @@ class Project:
             foreach_graphs=foreach_graphs,
             backend=str(data.get("backend", "local")),
             backend_options=dict(data.get("backend_options", {})),
+            build_options=dict(data.get("build_options", {})),
             version=int(data.get("version", 1)),
         )
         if project.version < 2:
@@ -607,7 +668,12 @@ class Project:
             project._migrate_v3()
         if project.version < 5:
             project._migrate_v4()
-        project.version = 5
+        if project.version < 6:
+            project._migrate_v5()
+        if project.version < 7:
+            project._migrate_v6()
+        project._fill_current_defaults()
+        project.version = 7
         # Region borders are the visual source of truth. Recompute immediate
         # parents on load so headless planning and the GUI interpret the same
         # nested layout.
@@ -1060,6 +1126,67 @@ class Project:
         """Infer nested region parents for v4 canvases and keep direct members."""
         self.workflow.infer_region_hierarchy_from_geometry()
         self.version = 5
+
+    def _migrate_v5(self) -> None:
+        """Remove the duplicated Loader Execute executable setting."""
+        for node in self.workflow.nodes:
+            if node.type == "loader_execute":
+                node.properties.pop("executable", None)
+        self.version = 6
+
+
+    def _migrate_v6(self) -> None:
+        """Rename Custom Command executable to portable project-local code."""
+        from .registry import NODE_SPECS
+
+        for node in self.workflow.nodes:
+            spec = NODE_SPECS.get(node.type)
+            if node.type == "custom_command":
+                old = str(node.properties.pop("executable", "")).strip()
+                if "code" not in node.properties:
+                    node.properties["code"] = old or "code/my_command.py"
+                if "output_name" not in node.properties:
+                    node.properties["output_name"] = safe_program_name(
+                        Path(str(node.properties["code"])).stem, "my_command"
+                    )
+            if spec:
+                for prop in spec.properties:
+                    node.properties.setdefault(prop.name, prop.default)
+        self.version = 7
+
+    def _fill_current_defaults(self) -> None:
+        """Fill settings introduced by newer versions without discarding values."""
+        from .registry import NODE_SPECS
+
+        backend_defaults = {
+            "local_workers": 4,
+            "lsf_queue": "s",
+            "lsf_poll_seconds": 10,
+            "lsf_max_inflight": 500,
+            "lsf_cancel_on_failure": True,
+            "condor_universe": "vanilla",
+        }
+        build_defaults = {
+            "compiler": "g++",
+            "cpp_standard": "c++17",
+            "belle2_analysis_dir": "Belle2_analysis",
+            "common_compile_flags": "",
+            "common_link_flags": "",
+            "loader_libraries": (
+                "-lRooFit\n-lRooStats\n-lRooFitCore\n-lMinuit\n"
+                "-lFastBDT_static"
+            ),
+        }
+        for key, value in backend_defaults.items():
+            self.backend_options.setdefault(key, value)
+        for key, value in build_defaults.items():
+            self.build_options.setdefault(key, value)
+        for graph in [self.workflow, *self.loader_programs.values()]:
+            for node in graph.nodes:
+                spec = NODE_SPECS.get(node.type)
+                if spec:
+                    for prop in spec.properties:
+                        node.properties.setdefault(prop.name, prop.default)
 
     def save(self, path: str | Path) -> None:
         target = Path(path)

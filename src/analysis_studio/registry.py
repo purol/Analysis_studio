@@ -7,8 +7,46 @@ P = PropertySpec
 
 ARGV_HELP = (
     "One argument per line. For Each variables may be used only while this "
-    "block is inside a For Each region. The region explicitly lists every "
+    "block is inside a For Each region. The surrounding region lists every "
     "available variable and its preview value."
+)
+
+EXECUTION_BACKEND_PROPERTIES = (
+    P(
+        "local_max_parallel",
+        "Local maximum parallel commands",
+        "int",
+        0,
+        help="0 uses the project-wide Local worker count.",
+    ),
+    P(
+        "lsf_queue",
+        "LSF queue override",
+        "text",
+        "",
+        help="Leave empty to use the project-wide default queue.",
+    ),
+    P(
+        "lsf_max_inflight",
+        "LSF maximum active jobs",
+        "int",
+        0,
+        help=(
+            "Maximum submitted/running instances of this block. 0 uses the "
+            "project-wide LSF limit. Useful when a For Each expands to many jobs."
+        ),
+    ),
+    P(
+        "lsf_extra_options",
+        "LSF extra options",
+        "argv",
+        "",
+        multiline=True,
+        help=(
+            "One bsub option or value per line, for example: -R on one line and "
+            "rusage[mem=4000] on the next. Do not include -q, -J, -o, -e or -w."
+        ),
+    ),
 )
 
 FOREACH_COMMON_PROPERTIES = (
@@ -50,8 +88,8 @@ FOREACH_TRAILING_PROPERTIES = (
         "int",
         0,
         help=(
-            "0 uses the backend-wide worker setting. LSF and HTCondor use "
-            "their scheduler limits."
+            "0 uses the backend-wide worker setting. Nested limits are applied "
+            "together. LSF uses each workflow block's LSF active-job limit."
         ),
     ),
 )
@@ -88,14 +126,14 @@ def _specs() -> list[NodeSpec]:
                     "loader_program",
                     "Loader program",
                     "loader_program_ref",
-                    "main_loader_program",
-                    help="Generated Loader program represented by a Loader tab.",
+                    "",
+                    help="Generated and compiled Loader program represented by a Loader tab.",
                 ),
-                P("executable", "Executable", "path", "./bin/Analysis_main"),
                 P("argv", "argv", "argv", "", multiline=True, help=ARGV_HELP),
                 P("working_directory", "Working directory", "path", ""),
                 P("output_dir", "Output directory", "path", ""),
                 P("job_name", "Job name", "text", "Loader"),
+                *EXECUTION_BACKEND_PROPERTIES,
             ),
         ),
         NodeSpec(
@@ -105,11 +143,85 @@ def _specs() -> list[NodeSpec]:
             "workflow",
             "#356b59",
             properties=(
-                P("executable", "Executable", "path", "./my_command"),
+                P(
+                    "code",
+                    "Code / script",
+                    "path",
+                    "code/my_command.py",
+                    help=(
+                        "Project-relative source path. Keep it inside the directory "
+                        "containing the .astudio.json file so the project is portable."
+                    ),
+                ),
+                P(
+                    "output_name",
+                    "Program name",
+                    "text",
+                    "my_command",
+                    help="Executable/script name created inside the project's bin directory.",
+                ),
+                P(
+                    "build_mode",
+                    "Build mode",
+                    "choice",
+                    "auto",
+                    ("auto", "custom", "copy"),
+                    help=(
+                        "auto compiles C/C++ and copies Python/shell files; custom runs "
+                        "the command below; copy always copies the file into bin."
+                    ),
+                ),
+                P(
+                    "use_analysis_framework",
+                    "Use ROOT / Belle2_analysis",
+                    "bool",
+                    True,
+                    help=(
+                        "For automatic C++ builds, add root-config flags and the "
+                        "Belle2_analysis/FastBDT include and library settings. Disable "
+                        "this for an ordinary standalone C++ program."
+                    ),
+                ),
+                P(
+                    "compile_command",
+                    "Custom compile command",
+                    "text",
+                    "",
+                    multiline=True,
+                    help=(
+                        "Used only in custom mode. The shell environment provides "
+                        "AS_SOURCE, AS_OUTPUT, AS_PROJECT_DIR and AS_BELLE2_ANALYSIS."
+                    ),
+                ),
+                P(
+                    "additional_sources",
+                    "Additional C/C++ sources",
+                    "text",
+                    "",
+                    multiline=True,
+                    help="One project-relative source file per line.",
+                ),
+                P(
+                    "compile_flags",
+                    "Additional compile flags",
+                    "argv",
+                    "",
+                    multiline=True,
+                    help="One flag or value per line.",
+                ),
+                P(
+                    "link_flags",
+                    "Additional link flags",
+                    "argv",
+                    "",
+                    multiline=True,
+                    help="One flag or value per line.",
+                ),
                 P("argv", "argv", "argv", "", multiline=True, help=ARGV_HELP),
                 P("working_directory", "Working directory", "path", ""),
                 P("output_dir", "Output directory", "path", ""),
                 P("job_name", "Job name", "text", "Command"),
+                *EXECUTION_BACKEND_PROPERTIES,
             ),
         ),
         NodeSpec(
@@ -126,9 +238,9 @@ def _specs() -> list[NodeSpec]:
                     "",
                     multiline=True,
                     help=(
-                        "One block name or node ID per line. Incoming connections "
-                        "are also dependencies. Independent branches may run at "
-                        "the same time until this barrier is reached."
+                        "One block name or node ID per line. Incoming connections are "
+                        "also dependencies. With LSF, downstream jobs are submitted only "
+                        "after all dependencies have actually finished successfully."
                     ),
                 ),
             ),
@@ -188,9 +300,7 @@ def _specs() -> list[NodeSpec]:
             "Selection",
             "loader",
             "#a06c2b",
-            properties=(
-                P("condition", "Condition", "text", "M > 1.5", multiline=True),
-            ),
+            properties=(P("condition", "Condition", "text", "M > 1.5", multiline=True),),
         ),
         NodeSpec(
             "draw_th1d",

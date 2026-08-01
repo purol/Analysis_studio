@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 from pathlib import Path
+import json
 import traceback
 
-from PySide6.QtCore import QObject, QThread, Qt, Signal, Slot
+from PySide6.QtCore import QObject, QThread, QTimer, Qt, Signal, Slot
 from PySide6.QtGui import QAction, QCloseEvent, QKeySequence
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QDialog,
     QDialogButtonBox,
@@ -14,8 +16,10 @@ from PySide6.QtWidgets import (
     QFormLayout,
     QInputDialog,
     QLabel,
+    QLineEdit,
     QMainWindow,
     QMessageBox,
+    QMenu,
     QPlainTextEdit,
     QSplitter,
     QSpinBox,
@@ -25,10 +29,15 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from .codegen import generate_loader_cpp, generate_project
+from .codegen import generate_loader_cpp
+from .build import (
+    compile_project as build_compile_project,
+    ensure_build_current,
+    generate_code,
+)
 from .execution import HTCondorExporter, LSFExecutor, LocalExecutor
 from .graphics import BlockPalette, GraphScene, GraphView
-from .model import Graph, Project, PropertySpec, WorkflowNode, new_id
+from .model import Graph, Project, PropertySpec, WorkflowNode
 from .properties import PropertyEditor
 from .validation import validate_project
 
@@ -105,15 +114,35 @@ class BackendSettingsDialog(QDialog):
         self.local_workers.setValue(int(options.get("local_workers", 4)))
         form.addRow("Local workers", self.local_workers)
 
-        from PySide6.QtWidgets import QLineEdit
-
         self.lsf_queue = QLineEdit(str(options.get("lsf_queue", "s")))
-        form.addRow("LSF queue", self.lsf_queue)
+        form.addRow("Default LSF queue", self.lsf_queue)
+        self.lsf_poll_seconds = QSpinBox()
+        self.lsf_poll_seconds.setRange(1, 3600)
+        self.lsf_poll_seconds.setValue(int(options.get("lsf_poll_seconds", 10)))
+        form.addRow("LSF poll interval (seconds)", self.lsf_poll_seconds)
+        self.lsf_max_inflight = QSpinBox()
+        self.lsf_max_inflight.setRange(0, 1_000_000)
+        self.lsf_max_inflight.setValue(int(options.get("lsf_max_inflight", 500)))
+        self.lsf_max_inflight.setSpecialValueText("Unlimited")
+        form.addRow("LSF maximum active jobs", self.lsf_max_inflight)
+        self.lsf_cancel_on_failure = QCheckBox()
+        self.lsf_cancel_on_failure.setChecked(
+            bool(options.get("lsf_cancel_on_failure", True))
+        )
+        form.addRow("Cancel active jobs after failure", self.lsf_cancel_on_failure)
+
         self.condor_universe = QLineEdit(
             str(options.get("condor_universe", "vanilla"))
         )
         form.addRow("HTCondor universe", self.condor_universe)
         layout.addWidget(form_widget)
+
+        note = QLabel(
+            "LSF dependencies are monitored by Analysis Studio. A downstream job "
+            "is submitted only after every parent is DONE; bsub -w is not used."
+        )
+        note.setWordWrap(True)
+        layout.addWidget(note)
 
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok
@@ -127,7 +156,69 @@ class BackendSettingsDialog(QDialog):
         return {
             "local_workers": self.local_workers.value(),
             "lsf_queue": self.lsf_queue.text().strip() or "s",
+            "lsf_poll_seconds": self.lsf_poll_seconds.value(),
+            "lsf_max_inflight": self.lsf_max_inflight.value(),
+            "lsf_cancel_on_failure": self.lsf_cancel_on_failure.isChecked(),
             "condor_universe": self.condor_universe.text().strip() or "vanilla",
+        }
+
+
+class BuildSettingsDialog(QDialog):
+    def __init__(self, options: dict[str, object], parent=None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Build settings")
+        self.resize(720, 560)
+        layout = QVBoxLayout(self)
+        form_widget = QWidget()
+        form = QFormLayout(form_widget)
+        self.compiler = QLineEdit(str(options.get("compiler", "g++")))
+        self.cpp_standard = QLineEdit(str(options.get("cpp_standard", "c++17")))
+        self.framework = QLineEdit(
+            str(options.get("belle2_analysis_dir", "Belle2_analysis"))
+        )
+        form.addRow("C++ compiler", self.compiler)
+        form.addRow("C++ standard", self.cpp_standard)
+        form.addRow("Belle2_analysis directory", self.framework)
+        layout.addWidget(form_widget)
+
+        from PySide6.QtWidgets import QPlainTextEdit
+        self.compile_flags = QPlainTextEdit(
+            str(options.get("common_compile_flags", ""))
+        )
+        self.link_flags = QPlainTextEdit(str(options.get("common_link_flags", "")))
+        self.loader_libraries = QPlainTextEdit(
+            str(options.get("loader_libraries", ""))
+        )
+        layout.addWidget(QLabel("Common compile flags — one per line"))
+        layout.addWidget(self.compile_flags)
+        layout.addWidget(QLabel("Common link flags — one per line"))
+        layout.addWidget(self.link_flags)
+        layout.addWidget(QLabel("Loader libraries — one per line"))
+        layout.addWidget(self.loader_libraries)
+        note = QLabel(
+            "The framework directory may be relative to the project root or to "
+            "the Analysis Studio source checkout. This supports a Belle2_analysis "
+            "git submodule shipped with Analysis Studio. Custom C++ blocks can add "
+            "their own compile/link flags or provide a completely custom build command."
+        )
+        note.setWordWrap(True)
+        layout.addWidget(note)
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok
+            | QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+    def values(self) -> dict[str, object]:
+        return {
+            "compiler": self.compiler.text().strip() or "g++",
+            "cpp_standard": self.cpp_standard.text().strip() or "c++17",
+            "belle2_analysis_dir": self.framework.text().strip() or "Belle2_analysis",
+            "common_compile_flags": self.compile_flags.toPlainText(),
+            "common_link_flags": self.link_flags.toPlainText(),
+            "loader_libraries": self.loader_libraries.toPlainText(),
         }
 
 
@@ -143,6 +234,15 @@ class MainWindow(QMainWindow):
         self.graph_tabs: dict[str, GraphEditor] = {}
         self.worker_thread: QThread | None = None
         self.execution_worker: ExecutionWorker | None = None
+        self._undo_stack: list[str] = []
+        self._redo_stack: list[str] = []
+        self._history_applying = False
+        self._history_snapshot = self._serialize_project()
+        self._saved_snapshot = self._history_snapshot
+        self._history_timer = QTimer(self)
+        self._history_timer.setSingleShot(True)
+        self._history_timer.setInterval(250)
+        self._history_timer.timeout.connect(self._commit_history)
 
         self.palette = BlockPalette()
         self.properties = PropertyEditor()
@@ -150,6 +250,12 @@ class MainWindow(QMainWindow):
         self.properties.set_project_directory(Path.cwd())
         self.tabs = QTabWidget()
         self.tabs.currentChanged.connect(self._active_tab_changed)
+        self.tabs.tabBar().setContextMenuPolicy(
+            Qt.ContextMenuPolicy.CustomContextMenu
+        )
+        self.tabs.tabBar().customContextMenuRequested.connect(
+            self._tab_context_menu
+        )
 
         splitter = QSplitter()
         splitter.addWidget(self.palette)
@@ -172,6 +278,7 @@ class MainWindow(QMainWindow):
         self._create_menus()
         self._create_toolbar()
         self._rebuild_tabs()
+        self._update_history_actions()
         self.statusBar().showMessage("Drag blocks or a For Each Region from the palette onto the canvas.")
 
     # ------------------------------------------------------------------ UI
@@ -192,18 +299,50 @@ class MainWindow(QMainWindow):
         self.save_as_action.setShortcut(QKeySequence.StandardKey.SaveAs)
         self.save_as_action.triggered.connect(self.save_project_as)
 
+        self.undo_action = QAction("Undo", self)
+        self.undo_action.setShortcut(QKeySequence.StandardKey.Undo)
+        self.undo_action.triggered.connect(self.undo)
+        self.redo_action = QAction("Redo", self)
+        self.redo_action.setShortcuts([
+            QKeySequence(QKeySequence.StandardKey.Redo), QKeySequence("Ctrl+Y")
+        ])
+        self.redo_action.triggered.connect(self.redo)
+
         self.delete_action = QAction("Delete selected", self)
-        self.delete_action.setShortcut(QKeySequence.StandardKey.Delete)
+        # Delete/Backspace are handled by GraphView. Not assigning the QAction
+        # shortcut avoids the menu text and "Del" label visually overlapping.
         self.delete_action.triggered.connect(self.delete_selected)
 
         self.add_loader_program_action = QAction("New Loader Program…", self)
         self.add_loader_program_action.triggered.connect(self.add_loader_program)
 
+        self.rename_loader_program_action = QAction("Rename Loader Program…", self)
+        self.rename_loader_program_action.triggered.connect(
+            self.rename_loader_program
+        )
+
+        self.delete_loader_program_action = QAction("Delete Loader Program…", self)
+        self.delete_loader_program_action.triggered.connect(
+            self.delete_loader_program
+        )
+
+        self.copy_blocks_action = QAction("Copy selected blocks", self)
+        self.copy_blocks_action.triggered.connect(self.copy_selected_blocks)
+
+        self.paste_blocks_action = QAction("Paste blocks", self)
+        self.paste_blocks_action.triggered.connect(self.paste_blocks)
+
         self.preview_cpp_action = QAction("Preview Loader C++", self)
         self.preview_cpp_action.triggered.connect(self.preview_loader_cpp)
 
-        self.generate_action = QAction("Generate Files…", self)
-        self.generate_action.triggered.connect(self.generate_files)
+        self.generate_action = QAction("Generate Code", self)
+        self.generate_action.triggered.connect(self.generate_code)
+
+        self.compile_action = QAction("Compile", self)
+        self.compile_action.triggered.connect(self.compile_project)
+
+        self.build_settings_action = QAction("Build Settings…", self)
+        self.build_settings_action.triggered.connect(self.edit_build_settings)
 
         self.run_action = QAction("Run / Submit", self)
         self.run_action.triggered.connect(self.run_project)
@@ -222,16 +361,27 @@ class MainWindow(QMainWindow):
         file_menu.addActions(
             [self.new_action, self.open_action, self.save_action, self.save_as_action]
         )
-        file_menu.addSeparator()
-        file_menu.addAction(self.generate_action)
 
         edit_menu = self.menuBar().addMenu("&Edit")
+        edit_menu.addAction(self.undo_action)
+        edit_menu.addAction(self.redo_action)
+        edit_menu.addSeparator()
+        edit_menu.addAction(self.copy_blocks_action)
+        edit_menu.addAction(self.paste_blocks_action)
+        edit_menu.addSeparator()
         edit_menu.addAction(self.delete_action)
 
         workflow_menu = self.menuBar().addMenu("&Workflow")
         workflow_menu.addAction(self.add_loader_program_action)
+        workflow_menu.addAction(self.rename_loader_program_action)
+        workflow_menu.addAction(self.delete_loader_program_action)
+        workflow_menu.addSeparator()
         workflow_menu.addAction(self.validate_action)
         workflow_menu.addAction(self.preview_cpp_action)
+        workflow_menu.addSeparator()
+        workflow_menu.addAction(self.generate_action)
+        workflow_menu.addAction(self.compile_action)
+        workflow_menu.addAction(self.build_settings_action)
         workflow_menu.addSeparator()
         workflow_menu.addAction(self.run_action)
         workflow_menu.addAction(self.export_condor_action)
@@ -248,6 +398,7 @@ class MainWindow(QMainWindow):
         toolbar.addAction(self.add_loader_program_action)
         toolbar.addAction(self.validate_action)
         toolbar.addAction(self.generate_action)
+        toolbar.addAction(self.compile_action)
         toolbar.addSeparator()
         toolbar.addWidget(QLabel(" Backend: "))
         self.backend_combo = QComboBox()
@@ -270,11 +421,37 @@ class MainWindow(QMainWindow):
             return
         self.palette.set_scope(editor.graph.scope)
         self.properties.show_empty()
+        is_loader = editor.graph.scope == "loader"
+        self.rename_loader_program_action.setEnabled(is_loader)
+        self.delete_loader_program_action.setEnabled(is_loader)
+        self.preview_cpp_action.setEnabled(is_loader)
         if editor.graph.id == self.project.workflow.id:
             kind = "main workflow"
         else:
             kind = "Loader program"
         self.statusBar().showMessage(f"Editing {kind}: {editor.graph.name}")
+
+    def _tab_context_menu(self, position) -> None:
+        index = self.tabs.tabBar().tabAt(position)
+        if index < 0:
+            return
+        widget = self.tabs.widget(index)
+        if not isinstance(widget, GraphEditor):
+            return
+        menu = QMenu(self)
+        if widget.graph.scope == "loader":
+            rename_action = menu.addAction("Rename Loader Program…")
+            delete_action = menu.addAction("Delete Loader Program…")
+            chosen = menu.exec(self.tabs.tabBar().mapToGlobal(position))
+            if chosen == rename_action:
+                self.tabs.setCurrentIndex(index)
+                self.rename_loader_program()
+            elif chosen == delete_action:
+                self.tabs.setCurrentIndex(index)
+                self.delete_loader_program()
+            return
+        menu.addAction("Workflow tab cannot be renamed or deleted").setEnabled(False)
+        menu.exec(self.tabs.tabBar().mapToGlobal(position))
 
     def _wire_editor(self, editor: GraphEditor) -> None:
         editor.scene.node_selected.connect(
@@ -293,7 +470,7 @@ class MainWindow(QMainWindow):
         editor.scene.node_activated.connect(
             lambda node_id, graph=editor.graph: self._node_activated(graph, node_id)
         )
-        editor.scene.graph_changed.connect(self._mark_dirty)
+        editor.scene.graph_changed.connect(self._project_mutated)
         editor.scene.status_message.connect(self.statusBar().showMessage)
 
     def _add_graph_tab(self, graph: Graph, label: str) -> GraphEditor:
@@ -350,21 +527,94 @@ class MainWindow(QMainWindow):
         return []
 
     # --------------------------------------------------------------- project
+    def _serialize_project(self) -> str:
+        return json.dumps(self.project.to_dict(), sort_keys=True, ensure_ascii=False)
+
+    def _project_mutated(self) -> None:
+        if self._history_applying:
+            return
+        self._history_timer.start()
+        self._update_dirty_state()
+
+    # Compatibility for older call sites inside this module.
     def _mark_dirty(self) -> None:
-        self.dirty = True
-        if not self.windowTitle().endswith(" *"):
-            self.setWindowTitle(self.windowTitle() + " *")
+        self._project_mutated()
+
+    def _commit_history(self) -> None:
+        if self._history_applying:
+            return
+        current = self._serialize_project()
+        if current != self._history_snapshot:
+            self._undo_stack.append(self._history_snapshot)
+            if len(self._undo_stack) > 100:
+                self._undo_stack.pop(0)
+            self._redo_stack.clear()
+            self._history_snapshot = current
+        self._update_history_actions()
+        self._update_dirty_state()
+
+    def _reset_history(self, saved: bool = True) -> None:
+        self._history_timer.stop()
+        self._undo_stack.clear()
+        self._redo_stack.clear()
+        self._history_snapshot = self._serialize_project()
+        if saved:
+            self._saved_snapshot = self._history_snapshot
+        self._update_history_actions()
+        self._update_dirty_state()
+
+    def _apply_history_snapshot(self, snapshot: str) -> None:
+        self._history_applying = True
+        try:
+            self.project = Project.from_dict(json.loads(snapshot))
+            self._history_snapshot = snapshot
+            self.properties.set_project_directory(
+                self.project_path.parent if self.project_path else Path.cwd()
+            )
+            self._rebuild_tabs()
+        finally:
+            self._history_applying = False
+        self._update_history_actions()
+        self._update_dirty_state()
+
+    def undo(self) -> None:
+        self._commit_history()
+        if not self._undo_stack:
+            return
+        previous = self._undo_stack.pop()
+        self._redo_stack.append(self._history_snapshot)
+        self._apply_history_snapshot(previous)
+
+    def redo(self) -> None:
+        self._commit_history()
+        if not self._redo_stack:
+            return
+        following = self._redo_stack.pop()
+        self._undo_stack.append(self._history_snapshot)
+        self._apply_history_snapshot(following)
+
+    def _update_history_actions(self) -> None:
+        if hasattr(self, "undo_action"):
+            self.undo_action.setEnabled(bool(self._undo_stack))
+            self.redo_action.setEnabled(bool(self._redo_stack))
+
+    def _update_dirty_state(self) -> None:
+        current = self._serialize_project()
+        self.dirty = current != self._saved_snapshot
+        name = self.project_path.name if self.project_path else self.project.name
+        suffix = " *" if self.dirty else ""
+        self.setWindowTitle(f"Analysis Studio — {name}{suffix}")
 
     def _mark_clean(self) -> None:
-        self.dirty = False
-        name = self.project_path.name if self.project_path else self.project.name
-        self.setWindowTitle(f"Analysis Studio — {name}")
+        self._commit_history()
+        self._saved_snapshot = self._serialize_project()
+        self._update_dirty_state()
 
     def _backend_changed(self) -> None:
         backend = str(self.backend_combo.currentData())
         if backend and backend != self.project.backend:
             self.project.backend = backend
-            self._mark_dirty()
+            self._project_mutated()
         self.run_action.setText("Export DAG" if backend == "htcondor" else "Run / Submit")
 
     def _confirm_discard(self) -> bool:
@@ -389,7 +639,7 @@ class MainWindow(QMainWindow):
         self.project_path = None
         self.properties.set_project_directory(Path.cwd())
         self._rebuild_tabs()
-        self._mark_clean()
+        self._reset_history(saved=True)
 
     def open_project(self) -> None:
         if not self._confirm_discard():
@@ -410,9 +660,10 @@ class MainWindow(QMainWindow):
         self.project_path = Path(filename)
         self.properties.set_project_directory(self.project_path.parent)
         self._rebuild_tabs()
-        self._mark_clean()
+        self._reset_history(saved=True)
 
     def save_project(self) -> bool:
+        self._commit_history()
         if self.project_path is None:
             return self.save_project_as()
         try:
@@ -439,6 +690,16 @@ class MainWindow(QMainWindow):
         self.properties.set_project_directory(self.project_path.parent)
         return self.save_project()
 
+    def copy_selected_blocks(self) -> None:
+        editor = self._active_editor()
+        if editor:
+            editor.scene.copy_selected()
+
+    def paste_blocks(self) -> None:
+        editor = self._active_editor()
+        if editor:
+            editor.scene.paste_selected()
+
     def delete_selected(self) -> None:
         editor = self._active_editor()
         if editor:
@@ -450,12 +711,99 @@ class MainWindow(QMainWindow):
         )
         if not ok or not name.strip():
             return
-        graph_id = "loader_program_" + new_id("graph").split("_", 1)[1]
-        graph = Graph(id=graph_id, name=name.strip(), scope="loader")
-        self.project.loader_programs[graph.id] = graph
+        try:
+            graph = self.project.create_loader_program(name)
+        except ValueError as exc:
+            QMessageBox.warning(self, "Could not create Loader program", str(exc))
+            return
         editor = self._add_graph_tab(graph, f"Loader: {graph.name}")
         self.tabs.setCurrentWidget(editor)
         self._mark_dirty()
+
+    def rename_loader_program(self) -> None:
+        editor = self._active_editor()
+        if not editor or editor.graph.scope != "loader":
+            QMessageBox.information(
+                self, "Loader program", "Select a Loader program tab first."
+            )
+            return
+        graph = editor.graph
+        name, ok = QInputDialog.getText(
+            self,
+            "Rename Loader program",
+            "Program name:",
+            text=graph.name,
+        )
+        if not ok:
+            return
+        new_name = name.strip()
+        if not new_name or new_name == graph.name:
+            return
+        try:
+            self.project.rename_loader_program(graph.id, new_name)
+        except ValueError as exc:
+            QMessageBox.warning(
+                self,
+                "Could not rename Loader program",
+                str(exc),
+            )
+            return
+        index = self.tabs.indexOf(editor)
+        if index >= 0:
+            self.tabs.setTabText(index, f"Loader: {graph.name}")
+        self._mark_dirty()
+        self.statusBar().showMessage(
+            f"Renamed Loader program. Expected executable: ./bin/{self._safe_program_name(graph.name)}",
+            6000,
+        )
+
+    @staticmethod
+    def _safe_program_name(value: str) -> str:
+        from .model import safe_program_name
+
+        return safe_program_name(value)
+
+    def delete_loader_program(self) -> None:
+        editor = self._active_editor()
+        if not editor or editor.graph.scope != "loader":
+            QMessageBox.information(
+                self, "Loader program", "Select a Loader program tab first."
+            )
+            return
+        graph = editor.graph
+        references = [
+            node
+            for node in self.project.workflow.nodes
+            if node.type == "loader_execute"
+            and str(node.properties.get("loader_program", "")) == graph.id
+        ]
+        extra = (
+            f"\n\n{len(references)} Loader Execute block(s) refer to this program. "
+            "Their Loader program selection will be cleared."
+            if references
+            else ""
+        )
+        answer = QMessageBox.question(
+            self,
+            "Delete Loader program",
+            f"Delete Loader program '{graph.name}'?{extra}",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Cancel,
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+        self.project.remove_loader_program(graph.id)
+        self.graph_tabs.pop(graph.id, None)
+        if editor in self.editors:
+            self.editors.remove(editor)
+        index = self.tabs.indexOf(editor)
+        if index >= 0:
+            self.tabs.removeTab(index)
+        editor.deleteLater()
+        self.tabs.setCurrentWidget(self.graph_tabs[self.project.workflow.id])
+        self.properties.show_empty()
+        self._mark_dirty()
+        self.statusBar().showMessage(f"Deleted Loader program: {graph.name}", 5000)
 
     # --------------------------------------------------------- generation/run
     def preview_loader_cpp(self) -> None:
@@ -473,7 +821,9 @@ class MainWindow(QMainWindow):
         TextPreviewDialog(f"C++ preview — {editor.graph.name}", code, self).exec()
 
     def _validation_errors(self) -> list[str]:
-        return validate_project(self.project)
+        return validate_project(
+            self.project, self.project_path.parent if self.project_path else None
+        )
 
     def validate_project(self) -> bool:
         errors = self._validation_errors()
@@ -487,24 +837,56 @@ class MainWindow(QMainWindow):
         QMessageBox.information(self, "Validation", "The project is valid.")
         return True
 
-    def generate_files(self) -> None:
+    def _ensure_saved_pipeline_project(self) -> bool:
+        self._commit_history()
+        if self.project_path is None or self.dirty:
+            return self.save_project()
+        return True
+
+    def generate_code(self) -> None:
+        if not self._ensure_saved_pipeline_project() or self.project_path is None:
+            return
         if self._validation_errors():
             self.validate_project()
             return
-        directory = QFileDialog.getExistingDirectory(self, "Generated files directory")
-        if not directory:
+        try:
+            saved_project = Project.load(self.project_path)
+            paths = generate_code(
+                saved_project, self.project_path, self.log_view.appendPlainText
+            )
+        except Exception as exc:
+            QMessageBox.critical(self, "Code generation failed", str(exc))
+            return
+        self.statusBar().showMessage(
+            f"Generated {len(paths)} file(s) in {self.project_path.parent / 'generated'}.",
+            6000,
+        )
+
+    def compile_project(self) -> None:
+        if not self._ensure_saved_pipeline_project() or self.project_path is None:
             return
         try:
-            paths = generate_project(self.project, directory)
+            saved_project = Project.load(self.project_path)
+            result = build_compile_project(
+                saved_project, self.project_path, self.log_view.appendPlainText
+            )
         except Exception as exc:
-            QMessageBox.critical(self, "Generation failed", str(exc))
+            QMessageBox.critical(self, "Compilation failed", str(exc))
             return
-        self.log_view.appendPlainText(
-            "Generated:\n" + "\n".join(f"  {path}" for path in paths)
+        self.statusBar().showMessage(
+            f"Built {len(result.outputs)} artifact(s) in {self.project_path.parent / 'bin'}.",
+            6000,
         )
-        self.statusBar().showMessage(f"Generated {len(paths)} file(s).", 5000)
+
 
     def export_condor(self) -> None:
+        if not self._ensure_saved_pipeline_project() or self.project_path is None:
+            return
+        try:
+            ensure_build_current(self.project_path)
+        except Exception as exc:
+            QMessageBox.warning(self, "Compile required", str(exc))
+            return
         if self._validation_errors():
             self.validate_project()
             return
@@ -531,9 +913,23 @@ class MainWindow(QMainWindow):
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
         self.project.backend_options.update(dialog.values())
-        self._mark_dirty()
+        self._project_mutated()
+
+    def edit_build_settings(self) -> None:
+        dialog = BuildSettingsDialog(self.project.build_options, self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        self.project.build_options.update(dialog.values())
+        self._project_mutated()
 
     def run_project(self) -> None:
+        if not self._ensure_saved_pipeline_project() or self.project_path is None:
+            return
+        try:
+            ensure_build_current(self.project_path)
+        except Exception as exc:
+            QMessageBox.warning(self, "Compile required", str(exc))
+            return
         backend = str(self.backend_combo.currentData())
         if backend == "htcondor":
             self.export_condor()
@@ -577,7 +973,7 @@ class MainWindow(QMainWindow):
 
     @Slot()
     def _execution_success(self) -> None:
-        self._execution_done(True, "Workflow completed or submitted.")
+        self._execution_done(True, "Workflow completed successfully.")
 
     @Slot(str)
     def _execution_failure(self, message: str) -> None:

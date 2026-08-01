@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import Counter
+from pathlib import Path
 import re
 
 from .foreach_tokens import (
@@ -9,7 +10,10 @@ from .foreach_tokens import (
     token_bindings,
     valid_source_key,
 )
-from .model import ForEachRegion, Graph, Project, WorkflowNode
+from .model import (
+    ForEachRegion, Graph, Project, WorkflowNode,
+    custom_command_output_name, safe_program_name,
+)
 from .registry import NODE_SPECS
 
 
@@ -348,7 +352,26 @@ def _validate_scope_cycles(
     return errors
 
 
-def validate_workflow_graph(graph: Graph, project: Project) -> list[str]:
+RUNTIME_TOKEN_PROPERTIES = {
+    "loader_execute": {"argv", "working_directory", "output_dir", "job_name"},
+    "custom_command": {"argv", "working_directory", "output_dir", "job_name"},
+}
+
+BUILD_TIME_CUSTOM_PROPERTIES = {
+    "code",
+    "output_name",
+    "compile_command",
+    "additional_sources",
+    "compile_flags",
+    "link_flags",
+    "lsf_queue",
+    "lsf_extra_options",
+}
+
+
+def validate_workflow_graph(
+    graph: Graph, project: Project, project_directory: str | Path | None = None
+) -> list[str]:
     errors = graph.validate(NODE_SPECS)
     if graph.scope != "workflow":
         return [*errors, f"{graph.name}: expected a workflow graph."]
@@ -360,15 +383,79 @@ def validate_workflow_graph(graph: Graph, project: Project) -> list[str]:
                 errors.append(
                     f"{node.title}: Loader program '{program_id}' does not exist."
                 )
-        elif node.type not in {"custom_command", "wait"}:
+        elif node.type == "custom_command":
+            code = str(node.properties.get("code", "")).strip()
+            if not code:
+                errors.append(f"{node.title}: Code / script is empty.")
+            else:
+                code_path = Path(code)
+                if code_path.is_absolute():
+                    errors.append(
+                        f"{node.title}: Code / script must be relative to the project "
+                        f"directory for portability: {code}"
+                    )
+                elif ".." in code_path.parts:
+                    errors.append(
+                        f"{node.title}: Code / script may not escape the project "
+                        f"directory: {code}"
+                    )
+                elif project_directory is not None:
+                    root = Path(project_directory).resolve()
+                    resolved = (root / code_path).resolve()
+                    try:
+                        resolved.relative_to(root)
+                    except ValueError:
+                        errors.append(
+                            f"{node.title}: Code / script escapes the project directory: {code}"
+                        )
+                    else:
+                        if not resolved.exists():
+                            errors.append(f"{node.title}: Code / script does not exist: {code}")
+            output_name = str(node.properties.get("output_name", "")).strip()
+            if not output_name:
+                errors.append(f"{node.title}: Program name is empty.")
+            elif safe_program_name(output_name) != output_name:
+                errors.append(
+                    f"{node.title}: Program name must already be filesystem-safe; "
+                    f"suggested: {safe_program_name(output_name)}"
+                )
+            mode = str(node.properties.get("build_mode", "auto"))
+            if mode not in {"auto", "custom", "copy"}:
+                errors.append(f"{node.title}: unknown build mode '{mode}'.")
+            if mode == "custom" and not str(node.properties.get("compile_command", "")).strip():
+                errors.append(f"{node.title}: custom build mode needs a compile command.")
+            for property_name in BUILD_TIME_CUSTOM_PROPERTIES:
+                used_at_build_time = extract_tokens(node.properties.get(property_name, ""))
+                if used_at_build_time:
+                    rendered = ", ".join("{" + name + "}" for name in used_at_build_time)
+                    errors.append(
+                        f"{node.title}: For Each variables cannot be used in build-time "
+                        f"property '{property_name}': {rendered}. Build each program once "
+                        "and pass loop-dependent values through argv or runtime paths."
+                    )
+        elif node.type not in {"wait"}:
             errors.append(f"{node.title}: unsupported workflow block '{node.type}'.")
+
+        forbidden_lsf = {"-q", "-J", "-o", "-e", "-w", "-cwd"}
+        lsf_options = [
+            line.strip() for line in str(node.properties.get("lsf_extra_options", "")).splitlines()
+            if line.strip()
+        ]
+        conflict = [value for value in lsf_options if value in forbidden_lsf]
+        if conflict:
+            errors.append(
+                f"{node.title}: LSF extra options may not override managed options: "
+                + ", ".join(conflict)
+            )
 
     for region in graph.foreach_regions:
         errors.extend(_validate_region(region, graph))
 
     for node in graph.nodes:
         used: list[str] = []
-        for value in node.properties.values():
+        token_properties = RUNTIME_TOKEN_PROPERTIES.get(node.type, set())
+        for property_name in token_properties:
+            value = node.properties.get(property_name, "")
             used.extend(name for name in extract_tokens(value) if name not in used)
         if not used:
             continue
@@ -400,6 +487,36 @@ def validate_workflow_graph(graph: Graph, project: Project) -> list[str]:
                 f"Variables available from '{chain}': {known}."
             )
 
+    artifact_owners: dict[str, tuple[str, tuple[object, ...] | None]] = {
+        safe_program_name(loader.name): (f"Loader program '{loader.name}'", None)
+        for loader in project.loader_programs.values()
+        if loader.nodes
+    }
+    for node in graph.nodes:
+        if node.type != "custom_command":
+            continue
+        artifact = custom_command_output_name(node)
+        signature: tuple[object, ...] = (
+            str(node.properties.get("code", "")),
+            str(node.properties.get("build_mode", "auto")),
+            bool(node.properties.get("use_analysis_framework", True)),
+            str(node.properties.get("compile_command", "")),
+            str(node.properties.get("additional_sources", "")),
+            str(node.properties.get("compile_flags", "")),
+            str(node.properties.get("link_flags", "")),
+        )
+        owner = artifact_owners.get(artifact)
+        # Several workflow blocks may invoke the same built program, but every
+        # build setting must agree. A Loader program always owns its bin name.
+        if owner and owner[1] != signature:
+            errors.append(
+                f"{node.title}: bin/{artifact} conflicts with {owner[0]} or uses "
+                "different build settings. Choose a unique Program name or make "
+                "the Custom Command build properties identical."
+            )
+        elif not owner:
+            artifact_owners[artifact] = (f"Custom Command '{node.title}'", signature)
+
     try:
         pairs = workflow_dependency_pairs(graph)
         extra = [pair for pair in pairs if pair not in graph.dependency_pairs()]
@@ -410,9 +527,11 @@ def validate_workflow_graph(graph: Graph, project: Project) -> list[str]:
     return errors
 
 
-def validate_project(project: Project) -> list[str]:
+def validate_project(
+    project: Project, project_directory: str | Path | None = None
+) -> list[str]:
     errors: list[str] = []
-    errors.extend(validate_workflow_graph(project.workflow, project))
+    errors.extend(validate_workflow_graph(project.workflow, project, project_directory))
     referenced_programs = {
         str(node.properties.get("loader_program", ""))
         for node in project.workflow.nodes

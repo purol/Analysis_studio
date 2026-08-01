@@ -1,15 +1,29 @@
 from __future__ import annotations
 
+import json
+import math
+
 from PySide6.QtCore import QByteArray, QMimeData, QPointF, QRectF, Qt, Signal
-from PySide6.QtGui import QBrush, QColor, QDrag, QPainter, QPainterPath, QPen
+from PySide6.QtGui import (
+    QBrush,
+    QColor,
+    QDrag,
+    QKeySequence,
+    QPainter,
+    QPainterPath,
+    QPen,
+    QPolygonF,
+)
 from PySide6.QtWidgets import (
     QGraphicsEllipseItem,
     QGraphicsItem,
     QGraphicsPathItem,
+    QGraphicsPolygonItem,
     QGraphicsRectItem,
     QGraphicsScene,
     QGraphicsTextItem,
     QGraphicsView,
+    QApplication,
     QInputDialog,
     QMenu,
     QTreeWidget,
@@ -21,6 +35,7 @@ from .registry import FOREACH_DEFAULTS, NODE_SPECS, specs_for_scope
 
 
 MIME_BLOCK_TYPE = "application/x-analysis-studio-block"
+MIME_SELECTION_TYPE = "application/x-analysis-studio-selection"
 FOREACH_REGION_TYPE = "__foreach_region__"
 NODE_WIDTH = 210.0
 HEADER_HEIGHT = 38.0
@@ -298,6 +313,14 @@ class ForEachRegionItem(QGraphicsRectItem):
 
 
 class EdgeItem(QGraphicsPathItem):
+    """A single cubic edge plus a separate arrowhead item.
+
+    In v0.6 the arrow polygon was added to the same painter path and the path
+    also had a brush. Qt implicitly closed the open Bézier subpath while
+    filling it, which could look like a second straight edge. Keeping the
+    arrowhead as a child polygon removes that unwanted chord.
+    """
+
     def __init__(
         self,
         edge: WorkflowEdge,
@@ -308,9 +331,16 @@ class EdgeItem(QGraphicsPathItem):
         self.edge = edge
         self.source_port = source_port
         self.target_port = target_port
-        self.setPen(QPen(QColor("#86b7d9"), 3.0))
+        self._normal_color = QColor("#86b7d9")
+        self.setPen(QPen(self._normal_color, 3.0))
+        self.setBrush(Qt.BrushStyle.NoBrush)
         self.setFlags(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable)
         self.setZValue(0)
+        self.arrow_item = QGraphicsPolygonItem(self)
+        self.arrow_item.setPen(Qt.PenStyle.NoPen)
+        self.arrow_item.setBrush(self._normal_color)
+        self.arrow_item.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
+        self.arrow_item.setZValue(1)
         self.update_path()
 
     def update_path(self) -> None:
@@ -324,6 +354,29 @@ class EdgeItem(QGraphicsPathItem):
             end,
         )
         self.setPath(path)
+
+        before_end = path.pointAtPercent(0.965)
+        angle = math.atan2(end.y() - before_end.y(), end.x() - before_end.x())
+        arrow_length = 15.0
+        arrow_half_width = 7.0
+        base = QPointF(
+            end.x() - arrow_length * math.cos(angle),
+            end.y() - arrow_length * math.sin(angle),
+        )
+        perpendicular = QPointF(
+            arrow_half_width * math.sin(angle),
+            -arrow_half_width * math.cos(angle),
+        )
+        self.arrow_item.setPolygon(
+            QPolygonF([end, base + perpendicular, base - perpendicular])
+        )
+
+    def itemChange(self, change, value):  # noqa: N802
+        if change == QGraphicsItem.GraphicsItemChange.ItemSelectedHasChanged:
+            color = QColor("#f4c95d") if bool(value) else self._normal_color
+            self.setPen(QPen(color, 3.0))
+            self.arrow_item.setBrush(color)
+        return super().itemChange(change, value)
 
 
 class GraphScene(QGraphicsScene):
@@ -386,6 +439,7 @@ class GraphScene(QGraphicsScene):
         spec = NODE_SPECS[block_type]
         if spec.scope != self.graph.scope:
             raise ValueError(f"{spec.label} cannot be added to a {self.graph.scope} graph.")
+        self.clearSelection()
         node = self.graph.add_node(spec, position.x(), position.y())
         item = self._add_node_item(node)
         item.setSelected(True)
@@ -396,6 +450,7 @@ class GraphScene(QGraphicsScene):
         return node
 
     def add_foreach_region(self, position: QPointF) -> ForEachRegion:
+        self.clearSelection()
         region = self.graph.add_region(
             position.x(), position.y(), dict(FOREACH_DEFAULTS)
         )
@@ -546,6 +601,133 @@ class GraphScene(QGraphicsScene):
         for node_id, item in self.node_items.items():
             item.set_start_order(order.get(node_id))
 
+
+    def copy_selected(self) -> bool:
+        selected_nodes = [
+            item.node for item in self.selectedItems() if isinstance(item, NodeItem)
+        ]
+        if not selected_nodes:
+            self.status_message.emit("Select one or more blocks to copy.")
+            return False
+        selected_ids = {node.id for node in selected_nodes}
+        edges = [
+            edge for edge in self.graph.edges
+            if edge.source in selected_ids and edge.target in selected_ids
+        ]
+        payload = {
+            "scope": self.graph.scope,
+            "nodes": [
+                {
+                    "old_id": node.id,
+                    "type": node.type,
+                    "title": node.title,
+                    "x": node.x,
+                    "y": node.y,
+                    "properties": node.properties,
+                }
+                for node in selected_nodes
+            ],
+            "edges": [
+                {
+                    "source": edge.source,
+                    "source_port": edge.source_port,
+                    "target": edge.target,
+                    "target_port": edge.target_port,
+                }
+                for edge in edges
+            ],
+        }
+        mime = QMimeData()
+        mime.setData(
+            MIME_SELECTION_TYPE,
+            QByteArray(json.dumps(payload, ensure_ascii=False).encode("utf-8")),
+        )
+        QApplication.clipboard().setMimeData(mime)
+        self.status_message.emit(
+            f"Copied {len(selected_nodes)} block(s). Internal IDs will be regenerated."
+        )
+        return True
+
+    def paste_selected(self) -> list[WorkflowNode]:
+        mime = QApplication.clipboard().mimeData()
+        if not mime.hasFormat(MIME_SELECTION_TYPE):
+            self.status_message.emit("The clipboard does not contain Analysis Studio blocks.")
+            return []
+        try:
+            payload = json.loads(
+                bytes(mime.data(MIME_SELECTION_TYPE)).decode("utf-8")
+            )
+        except (UnicodeDecodeError, json.JSONDecodeError, TypeError) as exc:
+            self.status_message.emit(f"Could not paste blocks: {exc}")
+            return []
+        if payload.get("scope") != self.graph.scope:
+            self.status_message.emit(
+                "Blocks can be pasted only into a graph of the same type."
+            )
+            return []
+
+        raw_nodes = list(payload.get("nodes", []))
+        if not raw_nodes:
+            return []
+        minimum_x = min(float(item.get("x", 0.0)) for item in raw_nodes)
+        minimum_y = min(float(item.get("y", 0.0)) for item in raw_nodes)
+        # Repeated Ctrl+V remains visible instead of exactly covering the source.
+        offset = QPointF(36.0, 36.0)
+        id_map: dict[str, str] = {}
+        created: list[WorkflowNode] = []
+        self.clearSelection()
+        for raw in raw_nodes:
+            block_type = str(raw.get("type", ""))
+            spec = NODE_SPECS.get(block_type)
+            if spec is None or spec.scope != self.graph.scope:
+                continue
+            node = self.graph.add_node(
+                spec,
+                float(raw.get("x", minimum_x)) + offset.x(),
+                float(raw.get("y", minimum_y)) + offset.y(),
+                str(raw.get("title", spec.label)),
+            )
+            node.properties = dict(raw.get("properties", {}))
+            id_map[str(raw.get("old_id", ""))] = node.id
+            created.append(node)
+            item = self._add_node_item(node)
+            item.setSelected(True)
+
+        for node in created:
+            if node.type != "wait":
+                continue
+            references = str(node.properties.get("wait_for", "")).splitlines()
+            node.properties["wait_for"] = "\n".join(
+                id_map.get(reference.strip(), reference)
+                for reference in references
+            )
+
+        for raw_edge in payload.get("edges", []):
+            source = id_map.get(str(raw_edge.get("source", "")))
+            target = id_map.get(str(raw_edge.get("target", "")))
+            if not source or not target:
+                continue
+            try:
+                edge = self.graph.add_edge(
+                    source,
+                    str(raw_edge.get("source_port", "out")),
+                    target,
+                    str(raw_edge.get("target_port", "in")),
+                )
+            except ValueError:
+                continue
+            self._add_edge_item(edge)
+
+        if created:
+            self.refresh_region_memberships()
+            self.refresh_start_badges()
+            self.graph_changed.emit()
+            self.node_added.emit(created[-1].id)
+            self.status_message.emit(
+                f"Pasted {len(created)} block(s) with new internal IDs."
+            )
+        return created
+
     def delete_selected(self) -> None:
         selected = list(self.selectedItems())
         edge_ids = [item.edge.id for item in selected if isinstance(item, EdgeItem)]
@@ -621,11 +803,20 @@ class GraphView(QGraphicsView):
         event.acceptProposedAction()
 
     def keyPressEvent(self, event) -> None:  # noqa: N802
-        if event.key() in (Qt.Key.Key_Delete, Qt.Key.Key_Backspace):
-            scene = self.scene()
-            if isinstance(scene, GraphScene):
+        scene = self.scene()
+        if isinstance(scene, GraphScene):
+            if event.matches(QKeySequence.StandardKey.Copy):
+                scene.copy_selected()
+                event.accept()
+                return
+            if event.matches(QKeySequence.StandardKey.Paste):
+                scene.paste_selected()
+                event.accept()
+                return
+            if event.key() in (Qt.Key.Key_Delete, Qt.Key.Key_Backspace):
                 scene.delete_selected()
-            return
+                event.accept()
+                return
         super().keyPressEvent(event)
 
 

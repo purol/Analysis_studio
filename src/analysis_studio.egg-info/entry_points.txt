@@ -1,0 +1,4 @@
+[console_scripts]
+analysis-studio = analysis_studio.app:main
+analysis-studio-cli = analysis_studio.cli:main
+belleflow = analysis_studio.app:main

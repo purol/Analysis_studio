@@ -15,6 +15,13 @@ def connect(graph, first, second):
     graph.add_edge(first.id, "out", second.id, "in")
 
 
+
+def ensure_echo_source(root: Path) -> None:
+    code = root / "code"
+    code.mkdir(exist_ok=True)
+    (code / "echo.py").write_text("print('ok')\n", encoding="utf-8")
+
+
 def valid_loader_program():
     graph = Graph("analysis_loader", "Analysis loader", "loader")
     declaration = add(graph, "loader_decl", variable_name="loader", branch="my_tree")
@@ -24,6 +31,7 @@ def valid_loader_program():
 
 
 def test_visible_for_each_region_and_wait_expand_to_dependencies(tmp_path: Path):
+    ensure_echo_source(tmp_path)
     for name in ["a.root", "b.root"]:
         (tmp_path / name).write_text("", encoding="utf-8")
 
@@ -36,7 +44,8 @@ def test_visible_for_each_region_and_wait_expand_to_dependencies(tmp_path: Path)
         project.workflow,
         "custom_command",
         "Prepare",
-        executable="/bin/echo",
+        code="code/echo.py",
+        output_name="echo",
         argv="prepare",
     )
     execute = add(
@@ -46,7 +55,8 @@ def test_visible_for_each_region_and_wait_expand_to_dependencies(tmp_path: Path)
         x=100,
         y=100,
         loader_program="analysis_loader",
-        executable="/bin/echo",
+        code="code/echo.py",
+        output_name="echo",
         argv="{file_name}\n{file_stem}\n{loop_index}",
         job_name="Analyze_{loop_index}",
     )
@@ -76,7 +86,8 @@ def test_visible_for_each_region_and_wait_expand_to_dependencies(tmp_path: Path)
         project.workflow,
         "custom_command",
         "Fit",
-        executable="/bin/echo",
+        code="code/echo.py",
+        output_name="echo",
         argv="fit",
     )
     connect(project.workflow, barrier, finish)
@@ -84,6 +95,7 @@ def test_visible_for_each_region_and_wait_expand_to_dependencies(tmp_path: Path)
     plan = build_execution_plan(project, tmp_path)
     assert len(plan.tasks) == 4
     analysis = [task for task in plan.tasks if "Analyze file" in task.title]
+    assert {task.executable for task in analysis} == {str((tmp_path / "bin" / "Analysis_loader").resolve())}
     assert [task.argv[0] for task in analysis] == ["a.root", "b.root"]
     fit = next(task for task in plan.tasks if task.title == "Fit")
     assert len(fit.dependencies) == 3
@@ -92,6 +104,7 @@ def test_visible_for_each_region_and_wait_expand_to_dependencies(tmp_path: Path)
 
 
 def test_csv_columns_are_iteration_variables(tmp_path: Path):
+    ensure_echo_source(tmp_path)
     csv_path = tmp_path / "points.csv"
     csv_path.write_text("mass,sample name\n1.0,A\n2.0,B\n", encoding="utf-8")
     project = Project(
@@ -103,7 +116,8 @@ def test_csv_columns_are_iteration_variables(tmp_path: Path):
         project.workflow,
         "custom_command",
         "Row command",
-        executable="/bin/echo",
+        code="code/echo.py",
+        output_name="echo",
         argv="{mass_value}\n{sample}\n{row_number}",
     )
     properties = dict(FOREACH_DEFAULTS)
@@ -129,6 +143,7 @@ def test_csv_columns_are_iteration_variables(tmp_path: Path):
 
 
 def test_nested_for_each_combines_outer_and_inner_variables(tmp_path: Path):
+    ensure_echo_source(tmp_path)
     project = Project(
         name="nested",
         workflow=Graph("workflow", "Workflow", "workflow"),
@@ -138,7 +153,8 @@ def test_nested_for_each_combines_outer_and_inner_variables(tmp_path: Path):
         project.workflow,
         "custom_command",
         "Combination",
-        executable="/bin/echo",
+        code="code/echo.py",
+        output_name="echo",
         argv="{sample}\n{mass}",
     )
 
@@ -179,6 +195,7 @@ def test_nested_for_each_combines_outer_and_inner_variables(tmp_path: Path):
 
 
 def test_nested_source_can_use_outer_variable(tmp_path: Path):
+    ensure_echo_source(tmp_path)
     project = Project(
         name="nested-source",
         workflow=Graph("workflow", "Workflow", "workflow"),
@@ -188,7 +205,8 @@ def test_nested_source_can_use_outer_variable(tmp_path: Path):
         project.workflow,
         "custom_command",
         "Combination",
-        executable="/bin/echo",
+        code="code/echo.py",
+        output_name="echo",
         argv="{sample}\n{variant}",
     )
     outer_properties = dict(FOREACH_DEFAULTS)
@@ -226,6 +244,7 @@ def test_nested_source_can_use_outer_variable(tmp_path: Path):
 
 
 def test_nested_concurrency_limits_are_inherited(tmp_path: Path):
+    ensure_echo_source(tmp_path)
     project = Project(
         name="nested-limits",
         workflow=Graph("workflow", "Workflow", "workflow"),
@@ -235,7 +254,8 @@ def test_nested_concurrency_limits_are_inherited(tmp_path: Path):
         project.workflow,
         "custom_command",
         "Combination",
-        executable="/bin/echo",
+        code="code/echo.py",
+        output_name="echo",
         argv="{outer_value}\n{inner_value}",
     )
     outer_properties = dict(FOREACH_DEFAULTS)

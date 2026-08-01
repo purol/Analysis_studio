@@ -9,7 +9,15 @@ import re
 from typing import Iterable
 
 from .foreach_tokens import bind_tokens
-from .model import ForEachRegion, Graph, Project, WorkflowNode, new_id
+from .model import (
+    ForEachRegion,
+    Graph,
+    Project,
+    WorkflowNode,
+    custom_executable_path,
+    loader_executable_path,
+    new_id,
+)
 from .validation import validate_project, workflow_dependency_pairs
 
 
@@ -67,6 +75,9 @@ class PlanTask:
     job_name: str
     dependencies: tuple[str, ...] = ()
     concurrency_limits: dict[str, int] = field(default_factory=dict)
+    lsf_queue: str = ""
+    lsf_max_inflight: int = 0
+    lsf_extra_options: tuple[str, ...] = ()
 
     @property
     def command(self) -> list[str]:
@@ -116,7 +127,7 @@ class PlanBuilder:
         self.tasks: list[PlanTask] = []
 
     def build(self) -> ExecutionPlan:
-        errors = validate_project(self.project)
+        errors = validate_project(self.project, self.project_directory)
         if errors:
             raise ValueError("Project validation failed:\n" + "\n".join(errors))
         self._expand_scope(
@@ -367,6 +378,15 @@ class PlanBuilder:
             return list(dependencies)
         raise ValueError(f"{node.title}: unsupported workflow block '{node.type}'.")
 
+    def _runtime_path(self, value: object, context: dict[str, object]) -> str:
+        expanded = expand_path(value, context)
+        if not expanded:
+            return ""
+        path = Path(expanded)
+        if not path.is_absolute():
+            path = self.project_directory / path
+        return str(path.resolve())
+
     def _make_command_task(
         self,
         node: WorkflowNode,
@@ -376,19 +396,37 @@ class PlanBuilder:
         label_prefix: str,
     ) -> PlanTask:
         local_context = dict(context)
-        output_dir = expand_path(node.properties.get("output_dir", ""), local_context)
-        working_directory = expand_path(
+        output_dir = self._runtime_path(
+            node.properties.get("output_dir", ""), local_context
+        )
+        working_directory = self._runtime_path(
             node.properties.get("working_directory", ""), local_context
         )
         if not working_directory:
             working_directory = str(self.project_directory)
-        executable = expand_path(node.properties.get("executable", ""), local_context)
-        if not executable:
-            raise ValueError(f"{node.title}: executable is empty.")
+        if node.type == "loader_execute":
+            program_id = str(node.properties.get("loader_program", ""))
+            program = self.project.loader_programs.get(program_id)
+            if program is None:
+                raise ValueError(
+                    f"{node.title}: Loader program '{program_id}' does not exist."
+                )
+            executable = self._runtime_path(loader_executable_path(program), local_context)
+        else:
+            executable = self._runtime_path(custom_executable_path(node), local_context)
         argv = tuple(expand_argv(node.properties.get("argv", ""), local_context))
         title = f"{label_prefix}{node.title}" if label_prefix else node.title
         job_name = expand_template(
             node.properties.get("job_name", node.title), local_context
+        )
+        task_limits = dict(limits)
+        local_maximum = int(node.properties.get("local_max_parallel", 0) or 0)
+        if local_maximum > 0:
+            task_limits[f"node:{node.id}"] = local_maximum
+        lsf_extra = tuple(
+            line.strip()
+            for line in str(node.properties.get("lsf_extra_options", "")).splitlines()
+            if line.strip()
         )
         return PlanTask(
             id=new_id("task"),
@@ -400,7 +438,10 @@ class PlanBuilder:
             output_dir=output_dir,
             job_name=job_name or "AnalysisStudio",
             dependencies=tuple(_unique(dependencies)),
-            concurrency_limits=dict(limits),
+            concurrency_limits=task_limits,
+            lsf_queue=str(node.properties.get("lsf_queue", "")).strip(),
+            lsf_max_inflight=max(0, int(node.properties.get("lsf_max_inflight", 0) or 0)),
+            lsf_extra_options=lsf_extra,
         )
 
     def _for_each_items(

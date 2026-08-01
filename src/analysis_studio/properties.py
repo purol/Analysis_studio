@@ -26,7 +26,13 @@ from PySide6.QtWidgets import (
 
 from .foreach_tokens import source_fields, token_bindings, token_definitions
 from .graphics import GraphScene
-from .model import ForEachRegion, PropertySpec, WorkflowNode
+from .model import (
+    ForEachRegion,
+    PropertySpec,
+    WorkflowNode,
+    custom_command_output_name,
+    safe_program_name,
+)
 from .registry import (
     FOREACH_COMMON_PROPERTIES,
     FOREACH_SOURCE_PROPERTIES,
@@ -327,6 +333,44 @@ class PropertyEditor(QScrollArea):
             if containing_regions:
                 self._show_available_variables(containing_regions)
 
+        if self.node.type == "loader_execute":
+            program_id = str(self.node.properties.get("loader_program", ""))
+            program_name = ""
+            program_property = next(
+                (prop for prop in spec.properties if prop.name == "loader_program"),
+                None,
+            )
+            if program_property and self.choice_provider:
+                for label, value in self.choice_provider(
+                    program_property, self.node, scene
+                ):
+                    if str(value) == program_id:
+                        program_name = label
+                        break
+            if program_name:
+                executable_note = QLabel(
+                    "Executable is derived from the Loader program name: "
+                    f"<b>./bin/{safe_program_name(program_name)}</b>"
+                )
+            else:
+                executable_note = QLabel(
+                    "Select a Loader program. Its executable path is generated "
+                    "automatically as <b>./bin/&lt;program_name&gt;</b>."
+                )
+            executable_note.setWordWrap(True)
+            executable_note.setStyleSheet("color: #8fb6d4;")
+            self._layout.addWidget(executable_note)
+        elif self.node.type == "custom_command":
+            artifact_note = QLabel(
+                "Generate Code / Compile builds or copies this project-local source "
+                f"as <b>./bin/{custom_command_output_name(self.node)}</b>. Runtime "
+                "For Each values belong in argv or runtime path properties, not in "
+                "the Code / script path."
+            )
+            artifact_note.setWordWrap(True)
+            artifact_note.setStyleSheet("color: #8fb6d4;")
+            self._layout.addWidget(artifact_note)
+
         roots = scene.start_roots()
         if any(root.id == self.node.id for root in roots):
             start_index = next(
@@ -477,6 +521,10 @@ class PropertyEditor(QScrollArea):
         self.scene.refresh_start_badges()
         self.scene.graph_changed.emit()
         self.property_changed.emit()
+        if name == "loader_program":
+            scene = self.scene
+            node_id = self.node.id
+            QTimer.singleShot(0, lambda: self.show_node(scene, node_id))
 
     def _set_region_property(self, name: str, value: object) -> None:
         if not self.region or not self.scene:
