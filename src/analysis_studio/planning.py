@@ -70,9 +70,12 @@ class PlanTask:
     title: str
     executable: str
     argv: tuple[str, ...]
-    working_directory: str
-    output_dir: str
-    job_name: str
+    block_name: str
+    mkdir_paths: tuple[str, ...]
+    log_prefix: str
+    log_suffix: str
+    err_prefix: str
+    err_suffix: str
     dependencies: tuple[str, ...] = ()
     concurrency_limits: dict[str, int] = field(default_factory=dict)
     lsf_queue: str = "s"
@@ -390,14 +393,11 @@ class PlanBuilder:
         label_prefix: str,
     ) -> PlanTask:
         local_context = dict(context)
-        output_dir = self._runtime_path(
-            node.properties.get("output_dir", ""), local_context
+        mkdir_paths = tuple(
+            self._runtime_path(line, local_context)
+            for line in str(node.properties.get("mkdir_p", "")).splitlines()
+            if line.strip()
         )
-        working_directory = self._runtime_path(
-            node.properties.get("working_directory", ""), local_context
-        )
-        if not working_directory:
-            working_directory = str(self.project_directory)
         if node.type == "loader_execute":
             program_id = str(node.properties.get("loader_program", ""))
             program = self.project.loader_programs.get(program_id)
@@ -410,18 +410,18 @@ class PlanBuilder:
             executable = self._runtime_path(custom_executable_path(node, self.project), local_context)
         argv = tuple(expand_argv(node.properties.get("argv", ""), local_context))
         title = f"{label_prefix}{node.title}" if label_prefix else node.title
-        job_name = expand_template(
-            node.properties.get("job_name", node.title), local_context
-        )
         return PlanTask(
             id=new_id("task"),
             node_id=node.id,
             title=title,
             executable=executable,
             argv=argv,
-            working_directory=working_directory,
-            output_dir=output_dir,
-            job_name=job_name or "AnalysisStudio",
+            block_name=node.title or "AnalysisStudio",
+            mkdir_paths=mkdir_paths,
+            log_prefix=expand_template(node.properties.get("log_prefix", ""), local_context),
+            log_suffix=expand_template(node.properties.get("log_suffix", ""), local_context),
+            err_prefix=expand_template(node.properties.get("err_prefix", ""), local_context),
+            err_suffix=expand_template(node.properties.get("err_suffix", ""), local_context),
             dependencies=tuple(_unique(dependencies)),
             lsf_queue=str(node.properties.get("lsf_queue", "s")).strip() or "s",
         )

@@ -118,9 +118,21 @@ def _specs() -> list[NodeSpec]:
                     help="Generated and compiled Loader program represented by a Loader tab.",
                 ),
                 P("argv", "argv", "argv", "", multiline=True, help=ARGV_HELP),
-                P("working_directory", "Working directory", "path", ""),
-                P("output_dir", "Output directory", "path", ""),
-                P("job_name", "Job name", "text", "Loader"),
+                P(
+                    "mkdir_p",
+                    "mkdir -p",
+                    "text",
+                    "",
+                    multiline=True,
+                    help=(
+                        "One directory per line. Relative paths are resolved from the "
+                        "project directory. For Each variables may be used inside a region."
+                    ),
+                ),
+                P("log_prefix", "Log prefix", "text", ""),
+                P("log_suffix", "Log suffix", "text", ""),
+                P("err_prefix", "Err prefix", "text", ""),
+                P("err_suffix", "Err suffix", "text", ""),
                 *EXECUTION_LSF_PROPERTIES,
             ),
         ),
@@ -190,9 +202,21 @@ def _specs() -> list[NodeSpec]:
                     help="One flag or value per line.",
                 ),
                 P("argv", "argv", "argv", "", multiline=True, help=ARGV_HELP),
-                P("working_directory", "Working directory", "path", ""),
-                P("output_dir", "Output directory", "path", ""),
-                P("job_name", "Job name", "text", "Command"),
+                P(
+                    "mkdir_p",
+                    "mkdir -p",
+                    "text",
+                    "",
+                    multiline=True,
+                    help=(
+                        "One directory per line. Relative paths are resolved from the "
+                        "project directory. For Each variables may be used inside a region."
+                    ),
+                ),
+                P("log_prefix", "Log prefix", "text", ""),
+                P("log_suffix", "Log suffix", "text", ""),
+                P("err_prefix", "Err prefix", "text", ""),
+                P("err_suffix", "Err suffix", "text", ""),
                 *EXECUTION_LSF_PROPERTIES,
             ),
         ),

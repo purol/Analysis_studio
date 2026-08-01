@@ -547,7 +547,10 @@ class PropertyEditor(QScrollArea):
         self.scene.refresh_start_badges()
         self.scene.graph_changed.emit()
         self.property_changed.emit()
-        if name in {"loader_program", "build_mode", "code"}:
+        refresh_panel = name in {"loader_program", "build_mode"} or (
+            self.node.type == "custom_command" and name == "code"
+        )
+        if refresh_panel:
             scene = self.scene
             node_id = self.node.id
             QTimer.singleShot(0, lambda: self.show_node(scene, node_id))

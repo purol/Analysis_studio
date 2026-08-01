@@ -587,7 +587,7 @@ class Project:
             ),
         }
     )
-    version: int = 8
+    version: int = 9
 
     @classmethod
     def empty(cls, name: str = "Untitled analysis") -> "Project":
@@ -711,8 +711,10 @@ class Project:
             project._migrate_v6()
         if project.version < 8:
             project._migrate_v7()
+        if project.version < 9:
+            project._migrate_v8()
         project._fill_current_defaults()
-        project.version = 8
+        project.version = 9
         # Region borders are the visual source of truth. Recompute immediate
         # parents on load so headless planning and the GUI interpret the same
         # nested layout.
@@ -1222,6 +1224,20 @@ class Project:
             region.properties.pop("max_parallel", None)
         self.version = 8
 
+
+    def _migrate_v8(self) -> None:
+        """Store logs per block and replace runtime directories with mkdir -p."""
+        for node in self.workflow.nodes:
+            if node.type not in {"loader_execute", "custom_command"}:
+                continue
+            old_output = str(node.properties.pop("output_dir", "")).strip()
+            existing = str(node.properties.get("mkdir_p", "")).strip()
+            if old_output and not existing:
+                node.properties["mkdir_p"] = old_output
+            node.properties.pop("working_directory", None)
+            node.properties.pop("job_name", None)
+        self.version = 9
+
     def _fill_current_defaults(self) -> None:
         """Fill settings introduced by newer versions without discarding values."""
         from .registry import NODE_SPECS
@@ -1261,7 +1277,14 @@ class Project:
                     for prop in spec.properties:
                         node.properties.setdefault(prop.name, prop.default)
                 if node.type in {"loader_execute", "custom_command"}:
-                    for obsolete in ("local_max_parallel", "lsf_max_inflight", "lsf_extra_options"):
+                    for obsolete in (
+                        "local_max_parallel",
+                        "lsf_max_inflight",
+                        "lsf_extra_options",
+                        "working_directory",
+                        "output_dir",
+                        "job_name",
+                    ):
                         node.properties.pop(obsolete, None)
                 if node.type == "custom_command":
                     node.properties.pop("output_name", None)

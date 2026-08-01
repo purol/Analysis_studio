@@ -207,3 +207,98 @@ def test_lsf_global_active_job_limit_applies_across_blocks(tmp_path: Path, monke
 
     kinds = [call[0] for call in calls]
     assert kinds[:3] == ["bsub", "bjobs", "bsub"]
+
+
+def test_local_executor_saves_separate_block_logs_and_creates_directories(tmp_path: Path):
+    code_dir = tmp_path / "code"
+    code_dir.mkdir(exist_ok=True)
+    source = code_dir / "emit.sh"
+    source.write_text(
+        "#!/usr/bin/env bash\nprintf 'hello stdout\\n'\nprintf 'hello stderr\\n' >&2\n",
+        encoding="utf-8",
+    )
+    source.chmod(0o755)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir(exist_ok=True)
+    executable = bin_dir / "emit"
+    executable.write_bytes(source.read_bytes())
+    executable.chmod(0o755)
+
+    project = Project(
+        name="logs",
+        workflow=Graph("workflow", "Workflow", "workflow"),
+        loader_programs={},
+        backend_options={"local_workers": 1},
+    )
+    node = add(
+        project.workflow,
+        "custom_command",
+        "Emit output",
+        code="code/emit.sh",
+        mkdir_p="results/nested",
+        log_prefix="stdout_",
+        log_suffix="_done",
+        err_prefix="stderr_",
+        err_suffix="_failed",
+    )
+    LocalExecutor(lambda _: None).run(project, tmp_path)
+
+    assert (tmp_path / "results" / "nested").is_dir()
+    block_dirs = list((tmp_path / "logs" / "local").glob("Emit_output__*"))
+    assert len(block_dirs) == 1
+    log_files = list(block_dirs[0].glob("stdout_*_done.log"))
+    err_files = list(block_dirs[0].glob("stderr_*_failed.err"))
+    assert len(log_files) == 1
+    assert len(err_files) == 1
+    assert log_files[0].read_text(encoding="utf-8") == "hello stdout\n"
+    assert err_files[0].read_text(encoding="utf-8") == "hello stderr\n"
+
+
+def test_lsf_uses_block_name_and_block_log_directories(tmp_path: Path, monkeypatch):
+    code, _name = make_project_program(tmp_path, "lsf_logs")
+    project = Project(
+        name="lsf-logs",
+        workflow=Graph("workflow", "Workflow", "workflow"),
+        loader_programs={},
+        backend_options={
+            "lsf_poll_seconds": 1,
+            "lsf_max_active_jobs": 1,
+            "lsf_cancel_on_failure": True,
+        },
+    )
+    add(
+        project.workflow,
+        "custom_command",
+        "Repeated Job Name",
+        code=code,
+        lsf_queue="s",
+        mkdir_p="results",
+        log_prefix="log_",
+        log_suffix="_x",
+        err_prefix="err_",
+        err_suffix="_y",
+    )
+    calls: list[list[str]] = []
+
+    def fake_run(command, **kwargs):
+        calls.append(list(command))
+        if command[0] == "bsub":
+            return subprocess.CompletedProcess(command, 0, "Job <901> is submitted\n", "")
+        if command[0] == "bjobs":
+            return subprocess.CompletedProcess(command, 0, "901 DONE 0\n", "")
+        raise AssertionError(command)
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    monkeypatch.setattr("analysis_studio.execution.time.sleep", lambda _seconds: None)
+    LSFExecutor(log=lambda _: None).run(project, tmp_path)
+
+    bsub = next(call for call in calls if call[0] == "bsub")
+    assert bsub[bsub.index("-J") + 1] == "Repeated Job Name"
+    stdout = Path(bsub[bsub.index("-o") + 1])
+    stderr = Path(bsub[bsub.index("-e") + 1])
+    assert stdout.parent.parent.name == "lsf"
+    assert stdout.parent.name.startswith("Repeated_Job_Name__")
+    assert stdout.name.startswith("log_") and stdout.name.endswith("_x.log")
+    assert stderr.name.startswith("err_") and stderr.name.endswith("_y.err")
+    assert "%J" in stdout.name and "%J" in stderr.name
+    assert (tmp_path / "results").is_dir()

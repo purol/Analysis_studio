@@ -98,7 +98,7 @@ def test_v2_hidden_for_each_migrates_to_visible_region():
         },
     }
     project = Project.from_dict(data)
-    assert project.version == 8
+    assert project.version == 9
     assert [node.title for node in project.workflow.nodes] == ["Analyze"]
     assert len(project.workflow.foreach_regions) == 1
     assert project.workflow.foreach_regions[0].member_node_ids == ["execute"]
@@ -162,7 +162,7 @@ def test_v1_per_file_workflow_migrates_through_visible_region():
         },
     }
     project = Project.from_dict(data)
-    assert project.version == 8
+    assert project.version == 9
     assert project.workflow.nodes[0].type == "loader_execute"
     assert project.workflow.nodes[0].properties["argv"] == "{directory}\n{filename}"
     assert project.workflow.foreach_regions[0].properties["tokens"] == [
@@ -214,7 +214,7 @@ def test_v4_region_geometry_migrates_to_nested_parent():
         "foreach_graphs": {},
     }
     project = Project.from_dict(data)
-    assert project.version == 8
+    assert project.version == 9
     assert project.workflow.region("outer").parent_region_id is None
     assert project.workflow.region("inner").parent_region_id == "outer"
 
@@ -261,7 +261,7 @@ def test_v5_loader_execute_executable_is_removed_during_migration():
         },
     }
     project = Project.from_dict(data)
-    assert project.version == 8
+    assert project.version == 9
     assert "executable" not in project.workflow.node("run").properties
 
 
@@ -345,7 +345,7 @@ def test_v7_backend_and_execution_properties_migrate_to_v8():
         "loader_programs": {},
     }
     project = Project.from_dict(data)
-    assert project.version == 8
+    assert project.version == 9
     assert project.backend_options["lsf_max_active_jobs"] == 123
     assert "lsf_queue" not in project.backend_options
     assert "lsf_max_inflight" not in project.backend_options
@@ -372,3 +372,42 @@ def test_v8_backend_settings_have_only_global_fields():
         "lsf_cancel_on_failure",
         "condor_universe",
     }
+
+
+def test_v8_execution_directory_properties_migrate_to_v9_mkdir_p():
+    data = {
+        "name": "legacy-v8",
+        "version": 8,
+        "workflow": {
+            "id": "workflow",
+            "name": "Workflow",
+            "scope": "workflow",
+            "nodes": [
+                {
+                    "id": "cmd",
+                    "type": "custom_command",
+                    "title": "Command",
+                    "properties": {
+                        "code": "code/run.py",
+                        "argv": "",
+                        "working_directory": "old/work",
+                        "output_dir": "results",
+                        "job_name": "Legacy job",
+                        "lsf_queue": "s",
+                    },
+                }
+            ],
+            "edges": [],
+            "foreach_regions": [],
+        },
+        "loader_programs": {},
+    }
+    project = Project.from_dict(data)
+    props = project.workflow.node("cmd").properties
+    assert project.version == 9
+    assert props["mkdir_p"] == "results"
+    assert "working_directory" not in props
+    assert "output_dir" not in props
+    assert "job_name" not in props
+    assert props["log_prefix"] == ""
+    assert props["err_suffix"] == ""

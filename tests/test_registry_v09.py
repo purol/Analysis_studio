@@ -13,6 +13,13 @@ def test_execution_blocks_only_keep_per_block_lsf_queue():
         assert "local_max_parallel" not in names
         assert "lsf_max_inflight" not in names
         assert "lsf_extra_options" not in names
+        assert "working_directory" not in names
+        assert "output_dir" not in names
+        assert "job_name" not in names
+        for required in (
+            "mkdir_p", "log_prefix", "log_suffix", "err_prefix", "err_suffix"
+        ):
+            assert required in names
 
 
 def test_custom_command_build_properties_match_v8_design():

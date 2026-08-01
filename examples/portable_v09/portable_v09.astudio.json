@@ -1,0 +1,148 @@
+{
+  "name": "Portable workflow example",
+  "workflow": {
+    "id": "workflow",
+    "name": "Workflow",
+    "scope": "workflow",
+    "nodes": [
+      {
+        "id": "node_a824db9782a6",
+        "type": "custom_command",
+        "title": "Prepare",
+        "x": 40,
+        "y": 80,
+        "properties": {
+          "code": "code/prepare.py",
+          "build_mode": "auto",
+          "compile_command": "",
+          "additional_sources": "",
+          "compile_flags": "",
+          "link_flags": "",
+          "argv": "",
+          "lsf_queue": "s",
+          "mkdir_p": "",
+          "log_prefix": "",
+          "log_suffix": "",
+          "err_prefix": "",
+          "err_suffix": ""
+        }
+      },
+      {
+        "id": "node_fb2334975bd9",
+        "type": "custom_command",
+        "title": "Analyze sample",
+        "x": 380,
+        "y": 140,
+        "properties": {
+          "code": "code/analyze.py",
+          "build_mode": "auto",
+          "compile_command": "",
+          "additional_sources": "",
+          "compile_flags": "",
+          "link_flags": "",
+          "argv": "{sample}",
+          "lsf_queue": "s",
+          "mkdir_p": "results",
+          "log_prefix": "",
+          "log_suffix": "",
+          "err_prefix": "",
+          "err_suffix": ""
+        }
+      },
+      {
+        "id": "node_8ed4603c561a",
+        "type": "wait",
+        "title": "Wait for preparation and analyses",
+        "x": 800,
+        "y": 120,
+        "properties": {
+          "wait_for": "Prepare\nAnalyze sample"
+        }
+      },
+      {
+        "id": "node_e1526bcd93d4",
+        "type": "custom_command",
+        "title": "Combine results",
+        "x": 1060,
+        "y": 120,
+        "properties": {
+          "code": "code/fit.py",
+          "build_mode": "auto",
+          "compile_command": "",
+          "additional_sources": "",
+          "compile_flags": "",
+          "link_flags": "",
+          "argv": "",
+          "lsf_queue": "l",
+          "mkdir_p": "fit",
+          "log_prefix": "",
+          "log_suffix": "",
+          "err_prefix": "",
+          "err_suffix": ""
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "edge_c16a24270b82",
+        "source": "node_8ed4603c561a",
+        "source_port": "out",
+        "target": "node_e1526bcd93d4",
+        "target_port": "in"
+      }
+    ],
+    "root_order": [
+      "node_a824db9782a6",
+      "node_fb2334975bd9",
+      "node_8ed4603c561a"
+    ],
+    "foreach_regions": [
+      {
+        "id": "foreach_51b78a804f7d",
+        "title": "Samples",
+        "x": 320,
+        "y": 50,
+        "width": 420,
+        "height": 300,
+        "properties": {
+          "source_mode": "values",
+          "directory": "./Ntuple",
+          "pattern": "*.root",
+          "csv_file": "./items.csv",
+          "delimiter": ",",
+          "has_header": true,
+          "values": "signal\nbackground\ncontrol",
+          "tokens": [
+            {
+              "name": "sample",
+              "source": "value"
+            }
+          ]
+        },
+        "member_node_ids": [
+          "node_fb2334975bd9"
+        ],
+        "parent_region_id": null
+      }
+    ]
+  },
+  "loader_programs": {},
+  "foreach_graphs": {},
+  "backend": "local",
+  "backend_options": {
+    "local_workers": 4,
+    "lsf_poll_seconds": 5,
+    "condor_universe": "vanilla",
+    "lsf_cancel_on_failure": true,
+    "lsf_max_active_jobs": 200
+  },
+  "build_options": {
+    "compiler": "g++",
+    "cpp_standard": "c++17",
+    "belle2_analysis_dir": "Belle2_analysis",
+    "common_compile_flags": "",
+    "common_link_flags": "",
+    "loader_libraries": "-lRooFit\n-lRooStats\n-lRooFitCore\n-lMinuit\n-lFastBDT_static"
+  },
+  "version": 9
+}

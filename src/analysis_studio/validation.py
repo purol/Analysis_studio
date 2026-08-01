@@ -352,8 +352,12 @@ def _validate_scope_cycles(
 
 
 RUNTIME_TOKEN_PROPERTIES = {
-    "loader_execute": {"argv", "working_directory", "output_dir", "job_name"},
-    "custom_command": {"argv", "working_directory", "output_dir", "job_name"},
+    "loader_execute": {
+        "argv", "mkdir_p", "log_prefix", "log_suffix", "err_prefix", "err_suffix"
+    },
+    "custom_command": {
+        "argv", "mkdir_p", "log_prefix", "log_suffix", "err_prefix", "err_suffix"
+    },
 }
 
 BUILD_TIME_CUSTOM_PROPERTIES = {
@@ -444,6 +448,13 @@ def validate_workflow_graph(
                 errors.append(
                     f"{node.title}: LSF queue must be one of s, l, h; got '{queue}'."
                 )
+            for property_name in ("log_prefix", "log_suffix", "err_prefix", "err_suffix"):
+                fragment = str(node.properties.get(property_name, ""))
+                if "/" in fragment or "\\" in fragment:
+                    errors.append(
+                        f"{node.title}: {property_name} is a filename fragment and may "
+                        "not contain a directory separator."
+                    )
 
     for region in graph.foreach_regions:
         errors.extend(_validate_region(region, graph))

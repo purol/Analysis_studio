@@ -23,6 +23,47 @@ def _project_directory(project_path: str | Path | None) -> Path:
     return path.parent if path.suffix else path
 
 
+def _safe_directory_component(value: str, fallback: str) -> str:
+    rendered = re.sub(r"[^\w.-]+", "_", str(value), flags=re.UNICODE).strip("._")
+    return rendered or fallback
+
+
+def _safe_filename_fragment(value: str) -> str:
+    return re.sub(r"[^\w.-]+", "_", str(value or ""), flags=re.UNICODE)
+
+
+def _task_log_paths(
+    project_root: Path,
+    backend: str,
+    task: PlanTask,
+    index: int,
+    job_token: str,
+) -> tuple[Path, Path]:
+    block = _safe_directory_component(task.block_name, "block")
+    node_suffix = task.node_id.rsplit("_", 1)[-1][:8]
+    directory = project_root / "logs" / backend / f"{block}__{node_suffix}"
+    directory.mkdir(parents=True, exist_ok=True)
+    task_suffix = task.id.rsplit("_", 1)[-1][:8]
+    base = f"{index:05d}_{job_token}_{task_suffix}"
+    stdout = directory / (
+        f"{_safe_filename_fragment(task.log_prefix)}{base}"
+        f"{_safe_filename_fragment(task.log_suffix)}.log"
+    )
+    stderr = directory / (
+        f"{_safe_filename_fragment(task.err_prefix)}{base}"
+        f"{_safe_filename_fragment(task.err_suffix)}.err"
+    )
+    return stdout, stderr
+
+
+def _tail(path: Path, max_characters: int = 8000) -> str:
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ""
+    return text[-max_characters:]
+
+
 class LocalExecutor:
     def __init__(self, log: LogCallback = print) -> None:
         self.log = log
@@ -32,15 +73,19 @@ class LocalExecutor:
         project: Project,
         project_path: str | Path | None = None,
     ) -> ExecutionPlan:
-        plan = build_execution_plan(project, _project_directory(project_path))
+        root = _project_directory(project_path)
+        plan = build_execution_plan(project, root)
         workers = max(1, int(project.backend_options.get("local_workers", 1)))
         self.log(f"Expanded workflow: {len(plan.tasks)} command task(s)")
         if not plan.tasks:
             return plan
 
+        ordered = plan.topological_order()
+        sequence = {task.id: index for index, task in enumerate(ordered)}
         pending = {task.id: task for task in plan.tasks}
         completed: set[str] = set()
-        running: dict[Future[tuple[str, str]], PlanTask] = {}
+        running: dict[Future[tuple[str, Path, Path]], PlanTask] = {}
+
         def allowed(task: PlanTask) -> bool:
             return set(task.dependencies).issubset(completed)
 
@@ -54,7 +99,9 @@ class LocalExecutor:
                             break
                         if not allowed(task):
                             continue
-                        running[pool.submit(self._run_task, task)] = task
+                        running[
+                            pool.submit(self._run_task, task, sequence[task.id], root)
+                        ] = task
                         del pending[task_id]
                         made_progress = True
 
@@ -68,35 +115,58 @@ class LocalExecutor:
                 for future in finished:
                     task = running.pop(future)
                     try:
-                        title, output = future.result()
+                        title, stdout_path, stderr_path = future.result()
                     except Exception:
                         for other in running:
                             other.cancel()
                         raise
-                    for line in output.splitlines():
+                    for line in stdout_path.read_text(
+                        encoding="utf-8", errors="replace"
+                    ).splitlines():
                         self.log(f"[{title}] {line}")
+                    for line in stderr_path.read_text(
+                        encoding="utf-8", errors="replace"
+                    ).splitlines():
+                        self.log(f"[{title}][stderr] {line}")
                     completed.add(task.id)
-                    self.log(f"[{title}] completed")
+                    self.log(
+                        f"[{title}] completed — log: {stdout_path}; err: {stderr_path}"
+                    )
         return plan
 
-    def _run_task(self, task: PlanTask) -> tuple[str, str]:
-        if task.output_dir:
-            Path(task.output_dir).mkdir(parents=True, exist_ok=True)
-        command = task.command
-        self.log(f"$ {shlex.join(command)}")
-        completed = subprocess.run(
-            command,
-            cwd=task.working_directory or None,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
+    def _run_task(
+        self,
+        task: PlanTask,
+        index: int,
+        project_root: Path,
+    ) -> tuple[str, Path, Path]:
+        for directory in task.mkdir_paths:
+            Path(directory).mkdir(parents=True, exist_ok=True)
+        stdout_path, stderr_path = _task_log_paths(
+            project_root, "local", task, index, "local"
         )
+        command = task.command
+        self.log(
+            f"$ {shlex.join(command)}\n"
+            f"  stdout -> {stdout_path}\n"
+            f"  stderr -> {stderr_path}"
+        )
+        with stdout_path.open("w", encoding="utf-8") as stdout_handle, \
+             stderr_path.open("w", encoding="utf-8") as stderr_handle:
+            completed = subprocess.run(
+                command,
+                cwd=project_root,
+                stdout=stdout_handle,
+                stderr=stderr_handle,
+                text=True,
+            )
         if completed.returncode != 0:
+            details = _tail(stderr_path) or _tail(stdout_path)
             raise RuntimeError(
                 f"{task.title} failed with exit code {completed.returncode}.\n"
-                f"{completed.stdout}"
+                f"log: {stdout_path}\nerr: {stderr_path}\n{details}"
             )
-        return task.title, completed.stdout
+        return task.title, stdout_path, stderr_path
 
 
 class LSFExecutor:
@@ -125,9 +195,6 @@ class LSFExecutor:
         root = _project_directory(project_path)
         plan = build_execution_plan(project, root)
         ordered = plan.topological_order()
-        log_root = root / ".analysis-studio" / "lsf-logs"
-        log_root.mkdir(parents=True, exist_ok=True)
-
         poll_seconds = max(1.0, float(project.backend_options.get("lsf_poll_seconds", 10)))
         global_limit = max(0, int(project.backend_options.get("lsf_max_active_jobs", 0) or 0))
         cancel_on_failure = bool(project.backend_options.get("lsf_cancel_on_failure", True))
@@ -180,7 +247,6 @@ class LSFExecutor:
                 job_id = self._submit(
                     task,
                     sequence[task.id],
-                    log_root,
                     root,
                 )
                 active[task.id] = (job_id, task)
@@ -232,27 +298,25 @@ class LSFExecutor:
         self,
         task: PlanTask,
         index: int,
-        log_root: Path,
         project_root: Path,
     ) -> str:
-        if task.output_dir:
-            Path(task.output_dir).mkdir(parents=True, exist_ok=True)
-        stdout = log_root / f"{index:05d}_{task.node_id}.out"
-        stderr = log_root / f"{index:05d}_{task.node_id}.err"
+        for directory in task.mkdir_paths:
+            Path(directory).mkdir(parents=True, exist_ok=True)
+        stdout, stderr = _task_log_paths(
+            project_root, "lsf", task, index, "%J"
+        )
         queue = task.lsf_queue or "s"
         submit = [
             "bsub",
             "-q",
             queue,
             "-J",
-            task.job_name,
+            task.block_name,
             "-o",
             str(stdout),
             "-e",
             str(stderr),
         ]
-        if task.working_directory:
-            submit.extend(["-cwd", task.working_directory])
         submit.extend(task.command)
         self.log(f"$ {shlex.join(submit)}")
         completed = subprocess.run(
@@ -330,6 +394,8 @@ class HTCondorExporter:
         output = Path(output_directory)
         output.mkdir(parents=True, exist_ok=True)
         (output / "logs").mkdir(exist_ok=True)
+        scripts = output / "scripts"
+        scripts.mkdir(exist_ok=True)
         plan = build_execution_plan(project, _project_directory(project_path))
         universe = str(project.backend_options.get("condor_universe", "vanilla"))
         names: dict[str, str] = {}
@@ -340,19 +406,27 @@ class HTCondorExporter:
             names[task.id] = job
             submit_name = f"{job}.sub"
             submit_path = output / submit_name
-            arguments = " ".join(self._quote_argument(arg) for arg in task.argv)
+            wrapper = scripts / f"{job}.sh"
+            wrapper_lines = ["#!/usr/bin/env bash", "set -e"]
+            for directory in task.mkdir_paths:
+                wrapper_lines.append("mkdir -p -- " + shlex.quote(directory))
+            wrapper_lines.append(
+                "cd -- " + shlex.quote(str(_project_directory(project_path)))
+            )
+            wrapper_lines.append("exec " + shlex.join(task.command))
+            wrapper.write_text("\n".join(wrapper_lines) + "\n", encoding="utf-8")
+            wrapper.chmod(0o755)
             lines = [
                 f"universe = {universe}",
-                f"executable = {task.executable}",
-                f"arguments = {arguments}",
+                f"executable = {wrapper.resolve()}",
+                "arguments =",
                 f"output = logs/{job}.out",
                 f"error = logs/{job}.err",
                 f"log = logs/{job}.log",
                 "request_cpus = 1",
+                "queue 1",
+                "",
             ]
-            if task.working_directory:
-                lines.append(f"initialdir = {task.working_directory}")
-            lines.extend(["queue 1", ""])
             submit_path.write_text("\n".join(lines), encoding="utf-8")
             dag_lines.append(f"JOB {job} {submit_name}")
             parents = [names[parent] for parent in task.dependencies]
