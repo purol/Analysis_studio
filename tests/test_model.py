@@ -98,7 +98,7 @@ def test_v2_hidden_for_each_migrates_to_visible_region():
         },
     }
     project = Project.from_dict(data)
-    assert project.version == 7
+    assert project.version == 8
     assert [node.title for node in project.workflow.nodes] == ["Analyze"]
     assert len(project.workflow.foreach_regions) == 1
     assert project.workflow.foreach_regions[0].member_node_ids == ["execute"]
@@ -162,7 +162,7 @@ def test_v1_per_file_workflow_migrates_through_visible_region():
         },
     }
     project = Project.from_dict(data)
-    assert project.version == 7
+    assert project.version == 8
     assert project.workflow.nodes[0].type == "loader_execute"
     assert project.workflow.nodes[0].properties["argv"] == "{directory}\n{filename}"
     assert project.workflow.foreach_regions[0].properties["tokens"] == [
@@ -214,7 +214,7 @@ def test_v4_region_geometry_migrates_to_nested_parent():
         "foreach_graphs": {},
     }
     project = Project.from_dict(data)
-    assert project.version == 7
+    assert project.version == 8
     assert project.workflow.region("outer").parent_region_id is None
     assert project.workflow.region("inner").parent_region_id == "outer"
 
@@ -261,7 +261,7 @@ def test_v5_loader_execute_executable_is_removed_during_migration():
         },
     }
     project = Project.from_dict(data)
-    assert project.version == 7
+    assert project.version == 8
     assert "executable" not in project.workflow.node("run").properties
 
 
@@ -291,3 +291,84 @@ def test_loader_program_generated_names_must_be_unique():
         assert "generated executable name" in str(exc)
     else:
         raise AssertionError("Expected generated-name collision to be rejected")
+
+
+def test_v7_backend_and_execution_properties_migrate_to_v8():
+    data = {
+        "name": "legacy-v7",
+        "version": 7,
+        "backend": "lsf",
+        "backend_options": {
+            "local_workers": 8,
+            "lsf_queue": "l",
+            "lsf_poll_seconds": 5,
+            "lsf_max_inflight": 123,
+            "lsf_cancel_on_failure": False,
+            "condor_universe": "vanilla",
+        },
+        "workflow": {
+            "id": "workflow",
+            "name": "Workflow",
+            "scope": "workflow",
+            "nodes": [
+                {
+                    "id": "cmd",
+                    "type": "custom_command",
+                    "title": "Command",
+                    "properties": {
+                        "code": "code/run.py",
+                        "output_name": "manual_name",
+                        "build_mode": "copy",
+                        "use_analysis_framework": False,
+                        "local_max_parallel": 4,
+                        "lsf_queue": "",
+                        "lsf_max_inflight": 7,
+                        "lsf_extra_options": "-R\nrusage[mem=1000]",
+                    },
+                }
+            ],
+            "edges": [],
+            "foreach_regions": [
+                {
+                    "id": "loop",
+                    "title": "Loop",
+                    "x": 0,
+                    "y": 0,
+                    "width": 400,
+                    "height": 200,
+                    "properties": {"source_mode": "values", "values": "a", "max_parallel": 9, "tokens": []},
+                    "member_node_ids": ["cmd"],
+                    "parent_region_id": None,
+                }
+            ],
+        },
+        "loader_programs": {},
+    }
+    project = Project.from_dict(data)
+    assert project.version == 8
+    assert project.backend_options["lsf_max_active_jobs"] == 123
+    assert "lsf_queue" not in project.backend_options
+    assert "lsf_max_inflight" not in project.backend_options
+    node = project.workflow.node("cmd")
+    assert node.properties["lsf_queue"] == "l"
+    assert node.properties["build_mode"] == "auto"
+    for key in (
+        "output_name",
+        "use_analysis_framework",
+        "local_max_parallel",
+        "lsf_max_inflight",
+        "lsf_extra_options",
+    ):
+        assert key not in node.properties
+    assert "max_parallel" not in project.workflow.region("loop").properties
+
+
+def test_v8_backend_settings_have_only_global_fields():
+    project = Project.empty()
+    assert set(project.backend_options) == {
+        "local_workers",
+        "lsf_poll_seconds",
+        "lsf_max_active_jobs",
+        "lsf_cancel_on_failure",
+        "condor_universe",
+    }

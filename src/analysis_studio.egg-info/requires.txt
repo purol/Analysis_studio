@@ -1,6 +1,0 @@
-
-[dev]
-pytest>=8
-
-[gui]
-PySide6<7,>=6.6

@@ -38,7 +38,7 @@ def test_local_executor_runs_dependency_graph(tmp_path: Path):
         name="local",
         workflow=Graph("workflow", "Workflow", "workflow"),
         loader_programs={},
-        backend_options={"local_workers": 2, "lsf_queue": "s", "condor_universe": "vanilla"},
+        backend_options={"local_workers": 2, "condor_universe": "vanilla"},
     )
     output = tmp_path / "result.txt"
     first = add(
@@ -46,7 +46,6 @@ def test_local_executor_runs_dependency_graph(tmp_path: Path):
         "custom_command",
         "First",
         code=code,
-        output_name=output_name,
         argv=f"-c\nprintf first > {output}",
     )
     second = add(
@@ -54,7 +53,6 @@ def test_local_executor_runs_dependency_graph(tmp_path: Path):
         "custom_command",
         "Second",
         code=code,
-        output_name=output_name,
         argv=f"-c\nprintf second >> {output}",
     )
     connect(project.workflow, first, second)
@@ -69,10 +67,10 @@ def test_condor_export_preserves_wait_dependencies(tmp_path: Path):
         workflow=Graph("workflow", "Workflow", "workflow"),
         loader_programs={},
     )
-    add(project.workflow, "custom_command", "A", code=code, output_name=output_name, argv="A")
-    add(project.workflow, "custom_command", "B", code=code, output_name=output_name, argv="B")
+    add(project.workflow, "custom_command", "A", code=code, argv="A")
+    add(project.workflow, "custom_command", "B", code=code, argv="B")
     wait = add(project.workflow, "wait", "Wait AB", wait_for="A\nB")
-    c = add(project.workflow, "custom_command", "C", code=code, output_name=output_name, argv="C")
+    c = add(project.workflow, "custom_command", "C", code=code, argv="C")
     connect(project.workflow, wait, c)
 
     dag = HTCondorExporter(lambda _: None).export(project, tmp_path / "dag", tmp_path)
@@ -91,9 +89,8 @@ def _lsf_project(tmp_path: Path) -> Project:
         loader_programs={},
         backend_options={
             "local_workers": 2,
-            "lsf_queue": "default",
             "lsf_poll_seconds": 1,
-            "lsf_max_inflight": 10,
+            "lsf_max_active_jobs": 10,
             "lsf_cancel_on_failure": True,
             "condor_universe": "vanilla",
         },
@@ -103,18 +100,16 @@ def _lsf_project(tmp_path: Path) -> Project:
         "custom_command",
         "First",
         code=code,
-        output_name=output_name,
         argv="first",
-        lsf_queue="short",
+        lsf_queue="s",
     )
     second = add(
         project.workflow,
         "custom_command",
         "Second",
         code=code,
-        output_name=output_name,
         argv="second",
-        lsf_queue="long",
+        lsf_queue="l",
     )
     connect(project.workflow, first, second)
     return project
@@ -148,8 +143,8 @@ def test_lsf_monitors_success_and_never_uses_bsub_wait(tmp_path: Path, monkeypat
     bsubs = [call for call in calls if call[0] == "bsub"]
     assert len(bsubs) == 2
     assert all("-w" not in call for call in bsubs)
-    assert bsubs[0][bsubs[0].index("-q") + 1] == "short"
-    assert bsubs[1][bsubs[1].index("-q") + 1] == "long"
+    assert bsubs[0][bsubs[0].index("-q") + 1] == "s"
+    assert bsubs[1][bsubs[1].index("-q") + 1] == "l"
     assert status_calls >= 2
 
 
@@ -172,3 +167,43 @@ def test_lsf_failure_prevents_downstream_submission(tmp_path: Path, monkeypatch)
     with pytest.raises(RuntimeError, match="Downstream jobs were not submitted"):
         LSFExecutor(log=lambda _: None).run(project, tmp_path)
     assert len([call for call in calls if call[0] == "bsub"]) == 1
+
+
+def test_lsf_global_active_job_limit_applies_across_blocks(tmp_path: Path, monkeypatch):
+    code, _name = make_project_program(tmp_path, "limited")
+    project = Project(
+        name="limited",
+        workflow=Graph("workflow", "Workflow", "workflow"),
+        loader_programs={},
+        backend_options={
+            "local_workers": 2,
+            "lsf_poll_seconds": 1,
+            "lsf_max_active_jobs": 1,
+            "lsf_cancel_on_failure": True,
+            "condor_universe": "vanilla",
+        },
+    )
+    add(project.workflow, "custom_command", "A", code=code, lsf_queue="s")
+    add(project.workflow, "custom_command", "B", code=code, lsf_queue="h")
+
+    calls: list[list[str]] = []
+    job_ids = iter(["301", "302"])
+
+    def fake_run(command, **kwargs):
+        calls.append(list(command))
+        if command[0] == "bsub":
+            job = next(job_ids)
+            return subprocess.CompletedProcess(command, 0, f"Job <{job}> is submitted\n", "")
+        if command[0] == "bjobs":
+            ids = [part for part in command if part.isdigit()]
+            return subprocess.CompletedProcess(
+                command, 0, "".join(f"{job} DONE 0\n" for job in ids), ""
+            )
+        raise AssertionError(command)
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    monkeypatch.setattr("analysis_studio.execution.time.sleep", lambda _seconds: None)
+    LSFExecutor(log=lambda _: None).run(project, tmp_path)
+
+    kinds = [call[0] for call in calls]
+    assert kinds[:3] == ["bsub", "bjobs", "bsub"]

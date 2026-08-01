@@ -45,7 +45,6 @@ def test_visible_for_each_region_and_wait_expand_to_dependencies(tmp_path: Path)
         "custom_command",
         "Prepare",
         code="code/echo.py",
-        output_name="echo",
         argv="prepare",
     )
     execute = add(
@@ -56,7 +55,6 @@ def test_visible_for_each_region_and_wait_expand_to_dependencies(tmp_path: Path)
         y=100,
         loader_program="analysis_loader",
         code="code/echo.py",
-        output_name="echo",
         argv="{file_name}\n{file_stem}\n{loop_index}",
         job_name="Analyze_{loop_index}",
     )
@@ -87,7 +85,6 @@ def test_visible_for_each_region_and_wait_expand_to_dependencies(tmp_path: Path)
         "custom_command",
         "Fit",
         code="code/echo.py",
-        output_name="echo",
         argv="fit",
     )
     connect(project.workflow, barrier, finish)
@@ -117,7 +114,6 @@ def test_csv_columns_are_iteration_variables(tmp_path: Path):
         "custom_command",
         "Row command",
         code="code/echo.py",
-        output_name="echo",
         argv="{mass_value}\n{sample}\n{row_number}",
     )
     properties = dict(FOREACH_DEFAULTS)
@@ -154,7 +150,6 @@ def test_nested_for_each_combines_outer_and_inner_variables(tmp_path: Path):
         "custom_command",
         "Combination",
         code="code/echo.py",
-        output_name="echo",
         argv="{sample}\n{mass}",
     )
 
@@ -206,7 +201,6 @@ def test_nested_source_can_use_outer_variable(tmp_path: Path):
         "custom_command",
         "Combination",
         code="code/echo.py",
-        output_name="echo",
         argv="{sample}\n{variant}",
     )
     outer_properties = dict(FOREACH_DEFAULTS)
@@ -243,7 +237,7 @@ def test_nested_source_can_use_outer_variable(tmp_path: Path):
     ]
 
 
-def test_nested_concurrency_limits_are_inherited(tmp_path: Path):
+def test_nested_for_each_uses_only_global_concurrency_settings(tmp_path: Path):
     ensure_echo_source(tmp_path)
     project = Project(
         name="nested-limits",
@@ -255,7 +249,6 @@ def test_nested_concurrency_limits_are_inherited(tmp_path: Path):
         "custom_command",
         "Combination",
         code="code/echo.py",
-        output_name="echo",
         argv="{outer_value}\n{inner_value}",
     )
     outer_properties = dict(FOREACH_DEFAULTS)
@@ -263,7 +256,6 @@ def test_nested_concurrency_limits_are_inherited(tmp_path: Path):
         {
             "source_mode": "values",
             "values": "A\nB",
-            "max_parallel": 2,
             "tokens": [{"name": "outer_value", "source": "value"}],
         }
     )
@@ -273,7 +265,6 @@ def test_nested_concurrency_limits_are_inherited(tmp_path: Path):
         {
             "source_mode": "values",
             "values": "1\n2",
-            "max_parallel": 3,
             "tokens": [{"name": "inner_value", "source": "value"}],
         }
     )
@@ -281,5 +272,4 @@ def test_nested_concurrency_limits_are_inherited(tmp_path: Path):
     inner.parent_region_id = outer.id
     inner.member_node_ids = [command.id]
     plan = build_execution_plan(project, tmp_path)
-    assert all(len(task.concurrency_limits) == 2 for task in plan.tasks)
-    assert all(sorted(task.concurrency_limits.values()) == [2, 3] for task in plan.tasks)
+    assert all(task.concurrency_limits == {} for task in plan.tasks)

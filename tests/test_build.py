@@ -31,7 +31,6 @@ def script_project(tmp_path: Path) -> tuple[Path, Project, Path]:
         "custom_command",
         "Hello",
         code="code/hello.py",
-        output_name="hello",
         build_mode="auto",
     )
     project_path = tmp_path / "portable.astudio.json"
@@ -83,15 +82,14 @@ def test_compile_standalone_cpp_without_root_or_framework(tmp_path: Path):
         "custom_command",
         "C++",
         code="code/hello.cc",
-        output_name="hello_cpp",
-        build_mode="auto",
-        use_analysis_framework=False,
+        build_mode="custom",
+        compile_command='g++ "$AS_SOURCE" -o "$AS_OUTPUT"',
     )
     project_path = tmp_path / "cpp.astudio.json"
     project.save(project_path)
     generate_code(project, project_path, log=lambda _line: None)
     compile_project(project, project_path, log=lambda _line: None)
-    assert (tmp_path / "bin" / "hello_cpp").exists()
+    assert (tmp_path / "bin" / "hello").exists()
 
 
 def test_custom_code_must_be_project_relative(tmp_path: Path):
@@ -101,7 +99,6 @@ def test_custom_code_must_be_project_relative(tmp_path: Path):
         "custom_command",
         "External",
         code="/outside/program.py",
-        output_name="external",
     )
     errors = validate_project(project, tmp_path)
     assert any("relative to the project directory" in error for error in errors)
@@ -114,7 +111,6 @@ def test_for_each_token_is_rejected_in_build_time_code_path(tmp_path: Path):
         "custom_command",
         "Build once",
         code="code/{sample}.py",
-        output_name="program",
         argv="{sample}",
     )
     region = project.workflow.add_region(
@@ -123,10 +119,25 @@ def test_for_each_token_is_rejected_in_build_time_code_path(tmp_path: Path):
         {
             "source_mode": "values",
             "values": "a\nb",
-            "max_parallel": 0,
             "tokens": [{"name": "sample", "source": "value"}],
         },
     )
     region.member_node_ids = [command.id]
     errors = validate_project(project, tmp_path)
     assert any("build-time property 'code'" in error for error in errors)
+
+
+def test_custom_program_names_are_derived_and_numbered(tmp_path: Path):
+    for directory in (tmp_path / "code" / "a", tmp_path / "code" / "b"):
+        directory.mkdir(parents=True, exist_ok=True)
+        (directory / "run.py").write_text("print('ok')\n", encoding="utf-8")
+    project = Project.empty("names")
+    first = add(project.workflow, "custom_command", "First", code="code/a/run.py")
+    second = add(project.workflow, "custom_command", "Second", code="code/b/run.py")
+    third = add(project.workflow, "custom_command", "Third", code="code/a/run.py")
+    from analysis_studio.model import custom_command_output_names
+
+    names = custom_command_output_names(project)
+    assert names[first.id] == "run"
+    assert names[second.id] == "run_2"
+    assert names[third.id] == "run"

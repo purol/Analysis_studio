@@ -1,0 +1,107 @@
+{
+  "name": "Nested For Each example",
+  "workflow": {
+    "id": "workflow",
+    "name": "Workflow",
+    "scope": "workflow",
+    "nodes": [
+      {
+        "id": "node_d0fea9ae2adf",
+        "type": "custom_command",
+        "title": "Analyze combination",
+        "x": 420,
+        "y": 230,
+        "properties": {
+          "code": "code/analyze.py",
+          "build_mode": "auto",
+          "compile_command": "",
+          "additional_sources": "",
+          "compile_flags": "",
+          "link_flags": "",
+          "argv": "{sample}_{mass}",
+          "working_directory": "",
+          "output_dir": "results",
+          "job_name": "Analyze_{sample}_{mass}",
+          "lsf_queue": "s"
+        }
+      }
+    ],
+    "edges": [],
+    "root_order": [
+      "node_d0fea9ae2adf"
+    ],
+    "foreach_regions": [
+      {
+        "id": "foreach_1a37afe46716",
+        "title": "Samples",
+        "x": 100,
+        "y": 50,
+        "width": 800,
+        "height": 520,
+        "properties": {
+          "source_mode": "values",
+          "directory": "./Ntuple",
+          "pattern": "*.root",
+          "csv_file": "./items.csv",
+          "delimiter": ",",
+          "has_header": true,
+          "values": "signal\nbackground",
+          "tokens": [
+            {
+              "name": "sample",
+              "source": "value"
+            }
+          ]
+        },
+        "member_node_ids": [],
+        "parent_region_id": null
+      },
+      {
+        "id": "foreach_caa92866e9c0",
+        "title": "Mass points",
+        "x": 260,
+        "y": 150,
+        "width": 500,
+        "height": 300,
+        "properties": {
+          "source_mode": "values",
+          "directory": "./Ntuple",
+          "pattern": "*.root",
+          "csv_file": "./items.csv",
+          "delimiter": ",",
+          "has_header": true,
+          "values": "1.0\n2.0",
+          "tokens": [
+            {
+              "name": "mass",
+              "source": "value"
+            }
+          ]
+        },
+        "member_node_ids": [
+          "node_d0fea9ae2adf"
+        ],
+        "parent_region_id": "foreach_1a37afe46716"
+      }
+    ]
+  },
+  "loader_programs": {},
+  "foreach_graphs": {},
+  "backend": "local",
+  "backend_options": {
+    "local_workers": 4,
+    "lsf_poll_seconds": 10,
+    "condor_universe": "vanilla",
+    "lsf_max_active_jobs": 500,
+    "lsf_cancel_on_failure": true
+  },
+  "build_options": {
+    "compiler": "g++",
+    "cpp_standard": "c++17",
+    "belle2_analysis_dir": "Belle2_analysis",
+    "common_compile_flags": "",
+    "common_link_flags": "",
+    "loader_libraries": "-lRooFit\n-lRooStats\n-lRooFitCore\n-lMinuit\n-lFastBDT_static"
+  },
+  "version": 8
+}

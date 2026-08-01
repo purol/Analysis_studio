@@ -17,19 +17,16 @@ def test_source_mode_exposes_only_relevant_properties():
         "source_mode",
         "directory",
         "pattern",
-        "max_parallel",
     ]
     assert [p.name for p in foreach_properties_for_mode("csv_rows")] == [
         "source_mode",
         "csv_file",
         "delimiter",
         "has_header",
-        "max_parallel",
     ]
     assert [p.name for p in foreach_properties_for_mode("values")] == [
         "source_mode",
         "values",
-        "max_parallel",
     ]
 
 
