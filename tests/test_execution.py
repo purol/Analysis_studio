@@ -235,19 +235,18 @@ def test_local_executor_saves_separate_block_logs_and_creates_directories(tmp_pa
         "custom_command",
         "Emit output",
         code="code/emit.sh",
-        mkdir_p="results/nested",
-        log_prefix="stdout_",
-        log_suffix="_done",
-        err_prefix="stderr_",
-        err_suffix="_failed",
+        mkdir_p='results/nested "results/with space"',
+        log_err_prefix="shared_",
+        log_err_suffix="_done",
     )
     LocalExecutor(lambda _: None).run(project, tmp_path)
 
     assert (tmp_path / "results" / "nested").is_dir()
+    assert (tmp_path / "results" / "with space").is_dir()
     block_dirs = list((tmp_path / "logs" / "local").glob("Emit_output__*"))
     assert len(block_dirs) == 1
-    log_files = list(block_dirs[0].glob("stdout_*_done.log"))
-    err_files = list(block_dirs[0].glob("stderr_*_failed.err"))
+    log_files = list(block_dirs[0].glob("shared_*_done.log"))
+    err_files = list(block_dirs[0].glob("shared_*_done.err"))
     assert len(log_files) == 1
     assert len(err_files) == 1
     assert log_files[0].read_text(encoding="utf-8") == "hello stdout\n"
@@ -273,10 +272,8 @@ def test_lsf_uses_block_name_and_block_log_directories(tmp_path: Path, monkeypat
         code=code,
         lsf_queue="s",
         mkdir_p="results",
-        log_prefix="log_",
-        log_suffix="_x",
-        err_prefix="err_",
-        err_suffix="_y",
+        log_err_prefix="job_",
+        log_err_suffix="_x",
     )
     calls: list[list[str]] = []
 
@@ -298,7 +295,7 @@ def test_lsf_uses_block_name_and_block_log_directories(tmp_path: Path, monkeypat
     stderr = Path(bsub[bsub.index("-e") + 1])
     assert stdout.parent.parent.name == "lsf"
     assert stdout.parent.name.startswith("Repeated_Job_Name__")
-    assert stdout.name.startswith("log_") and stdout.name.endswith("_x.log")
-    assert stderr.name.startswith("err_") and stderr.name.endswith("_y.err")
+    assert stdout.name.startswith("job_") and stdout.name.endswith("_x.log")
+    assert stderr.name.startswith("job_") and stderr.name.endswith("_x.err")
     assert "%J" in stdout.name and "%J" in stderr.name
     assert (tmp_path / "results").is_dir()

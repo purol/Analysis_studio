@@ -353,10 +353,10 @@ def _validate_scope_cycles(
 
 RUNTIME_TOKEN_PROPERTIES = {
     "loader_execute": {
-        "argv", "mkdir_p", "log_prefix", "log_suffix", "err_prefix", "err_suffix"
+        "argv", "mkdir_p", "log_err_prefix", "log_err_suffix"
     },
     "custom_command": {
-        "argv", "mkdir_p", "log_prefix", "log_suffix", "err_prefix", "err_suffix"
+        "argv", "mkdir_p", "log_err_prefix", "log_err_suffix"
     },
 }
 
@@ -448,7 +448,7 @@ def validate_workflow_graph(
                 errors.append(
                     f"{node.title}: LSF queue must be one of s, l, h; got '{queue}'."
                 )
-            for property_name in ("log_prefix", "log_suffix", "err_prefix", "err_suffix"):
+            for property_name in ("log_err_prefix", "log_err_suffix"):
                 fragment = str(node.properties.get(property_name, ""))
                 if "/" in fragment or "\\" in fragment:
                     errors.append(

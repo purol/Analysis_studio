@@ -587,7 +587,7 @@ class Project:
             ),
         }
     )
-    version: int = 9
+    version: int = 10
 
     @classmethod
     def empty(cls, name: str = "Untitled analysis") -> "Project":
@@ -713,8 +713,10 @@ class Project:
             project._migrate_v7()
         if project.version < 9:
             project._migrate_v8()
+        if project.version < 10:
+            project._migrate_v9()
         project._fill_current_defaults()
-        project.version = 9
+        project.version = 10
         # Region borders are the visual source of truth. Recompute immediate
         # parents on load so headless planning and the GUI interpret the same
         # nested layout.
@@ -1237,6 +1239,32 @@ class Project:
             node.properties.pop("working_directory", None)
             node.properties.pop("job_name", None)
         self.version = 9
+
+
+    def _migrate_v9(self) -> None:
+        """Share stdout/stderr filename affixes and use shell-style mkdir arguments."""
+        for node in self.workflow.nodes:
+            if node.type not in {"loader_execute", "custom_command"}:
+                continue
+            old_log_prefix = str(node.properties.pop("log_prefix", ""))
+            old_err_prefix = str(node.properties.pop("err_prefix", ""))
+            old_log_suffix = str(node.properties.pop("log_suffix", ""))
+            old_err_suffix = str(node.properties.pop("err_suffix", ""))
+            node.properties.setdefault(
+                "log_err_prefix", old_log_prefix if old_log_prefix else old_err_prefix
+            )
+            node.properties.setdefault(
+                "log_err_suffix", old_log_suffix if old_log_suffix else old_err_suffix
+            )
+            # v0.9 used one directory per line. Whitespace is the v0.10 separator;
+            # ordinary one-path-per-line values therefore migrate naturally.
+            mkdir_value = str(node.properties.get("mkdir_p", ""))
+            node.properties["mkdir_p"] = " ".join(
+                shlex.quote(line.strip())
+                for line in mkdir_value.splitlines()
+                if line.strip()
+            )
+        self.version = 10
 
     def _fill_current_defaults(self) -> None:
         """Fill settings introduced by newer versions without discarding values."""

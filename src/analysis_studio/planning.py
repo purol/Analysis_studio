@@ -6,6 +6,7 @@ import csv
 import glob
 import os
 import re
+import shlex
 from typing import Iterable
 
 from .foreach_tokens import bind_tokens
@@ -72,10 +73,8 @@ class PlanTask:
     argv: tuple[str, ...]
     block_name: str
     mkdir_paths: tuple[str, ...]
-    log_prefix: str
-    log_suffix: str
-    err_prefix: str
-    err_suffix: str
+    log_err_prefix: str
+    log_err_suffix: str
     dependencies: tuple[str, ...] = ()
     concurrency_limits: dict[str, int] = field(default_factory=dict)
     lsf_queue: str = "s"
@@ -393,11 +392,21 @@ class PlanBuilder:
         label_prefix: str,
     ) -> PlanTask:
         local_context = dict(context)
-        mkdir_paths = tuple(
-            self._runtime_path(line, local_context)
-            for line in str(node.properties.get("mkdir_p", "")).splitlines()
-            if line.strip()
-        )
+        mkdir_text = expand_template(node.properties.get("mkdir_p", ""), local_context)
+        try:
+            mkdir_items = shlex.split(mkdir_text)
+        except ValueError as error:
+            raise ValueError(f"{node.title}: invalid mkdir -p value: {error}") from error
+        resolved_mkdir_paths: list[str] = []
+        for item in mkdir_items:
+            expanded_item = os.path.expandvars(os.path.expanduser(item))
+            if not expanded_item.strip():
+                continue
+            path = Path(expanded_item)
+            if not path.is_absolute():
+                path = self.project_directory / path
+            resolved_mkdir_paths.append(str(path.resolve()))
+        mkdir_paths = tuple(resolved_mkdir_paths)
         if node.type == "loader_execute":
             program_id = str(node.properties.get("loader_program", ""))
             program = self.project.loader_programs.get(program_id)
@@ -418,10 +427,12 @@ class PlanBuilder:
             argv=argv,
             block_name=node.title or "AnalysisStudio",
             mkdir_paths=mkdir_paths,
-            log_prefix=expand_template(node.properties.get("log_prefix", ""), local_context),
-            log_suffix=expand_template(node.properties.get("log_suffix", ""), local_context),
-            err_prefix=expand_template(node.properties.get("err_prefix", ""), local_context),
-            err_suffix=expand_template(node.properties.get("err_suffix", ""), local_context),
+            log_err_prefix=expand_template(
+                node.properties.get("log_err_prefix", ""), local_context
+            ),
+            log_err_suffix=expand_template(
+                node.properties.get("log_err_suffix", ""), local_context
+            ),
             dependencies=tuple(_unique(dependencies)),
             lsf_queue=str(node.properties.get("lsf_queue", "s")).strip() or "s",
         )

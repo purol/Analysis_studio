@@ -123,16 +123,15 @@ def _specs() -> list[NodeSpec]:
                     "mkdir -p",
                     "text",
                     "",
-                    multiline=True,
                     help=(
-                        "One directory per line. Relative paths are resolved from the "
-                        "project directory. For Each variables may be used inside a region."
+                        "Separate directories with spaces, as in mkdir -p dir_a dir_b. "
+                        "Use shell-style quotes for paths containing spaces. Relative paths "
+                        "are resolved from the project directory. For Each variables may be "
+                        "used inside a region."
                     ),
                 ),
-                P("log_prefix", "Log prefix", "text", ""),
-                P("log_suffix", "Log suffix", "text", ""),
-                P("err_prefix", "Err prefix", "text", ""),
-                P("err_suffix", "Err suffix", "text", ""),
+                P("log_err_prefix", "Log/err prefix", "text", ""),
+                P("log_err_suffix", "Log/err suffix", "text", ""),
                 *EXECUTION_LSF_PROPERTIES,
             ),
         ),
@@ -207,16 +206,15 @@ def _specs() -> list[NodeSpec]:
                     "mkdir -p",
                     "text",
                     "",
-                    multiline=True,
                     help=(
-                        "One directory per line. Relative paths are resolved from the "
-                        "project directory. For Each variables may be used inside a region."
+                        "Separate directories with spaces, as in mkdir -p dir_a dir_b. "
+                        "Use shell-style quotes for paths containing spaces. Relative paths "
+                        "are resolved from the project directory. For Each variables may be "
+                        "used inside a region."
                     ),
                 ),
-                P("log_prefix", "Log prefix", "text", ""),
-                P("log_suffix", "Log suffix", "text", ""),
-                P("err_prefix", "Err prefix", "text", ""),
-                P("err_suffix", "Err suffix", "text", ""),
+                P("log_err_prefix", "Log/err prefix", "text", ""),
+                P("log_err_suffix", "Log/err suffix", "text", ""),
                 *EXECUTION_LSF_PROPERTIES,
             ),
         ),

@@ -46,12 +46,12 @@ def _task_log_paths(
     task_suffix = task.id.rsplit("_", 1)[-1][:8]
     base = f"{index:05d}_{job_token}_{task_suffix}"
     stdout = directory / (
-        f"{_safe_filename_fragment(task.log_prefix)}{base}"
-        f"{_safe_filename_fragment(task.log_suffix)}.log"
+        f"{_safe_filename_fragment(task.log_err_prefix)}{base}"
+        f"{_safe_filename_fragment(task.log_err_suffix)}.log"
     )
     stderr = directory / (
-        f"{_safe_filename_fragment(task.err_prefix)}{base}"
-        f"{_safe_filename_fragment(task.err_suffix)}.err"
+        f"{_safe_filename_fragment(task.log_err_prefix)}{base}"
+        f"{_safe_filename_fragment(task.log_err_suffix)}.err"
     )
     return stdout, stderr
 

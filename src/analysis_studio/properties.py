@@ -635,7 +635,17 @@ class PropertyEditor(QScrollArea):
 
         if prop.multiline or prop.kind in {"argv", "node_refs"}:
             widget = QPlainTextEdit(str(value))
-            widget.setMinimumHeight(100)
+            compact_multiline = {
+                "argv",
+                "compile_command",
+                "additional_sources",
+                "compile_flags",
+                "link_flags",
+            }
+            if prop.name in compact_multiline:
+                widget.setFixedHeight(70)
+            else:
+                widget.setMinimumHeight(100)
             widget.textChanged.connect(
                 lambda name=prop.name, editor=widget: setter(
                     name, editor.toPlainText()

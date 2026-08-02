@@ -5,7 +5,7 @@ def property_names(node_type: str) -> list[str]:
     return [prop.name for prop in NODE_SPECS[node_type].properties]
 
 
-def test_execution_blocks_only_keep_per_block_lsf_queue():
+def test_execution_blocks_use_shared_log_affixes_and_single_line_mkdir():
     loader = property_names("loader_execute")
     custom = property_names("custom_command")
     for names in (loader, custom):
@@ -16,10 +16,15 @@ def test_execution_blocks_only_keep_per_block_lsf_queue():
         assert "working_directory" not in names
         assert "output_dir" not in names
         assert "job_name" not in names
-        for required in (
-            "mkdir_p", "log_prefix", "log_suffix", "err_prefix", "err_suffix"
-        ):
+        for required in ("mkdir_p", "log_err_prefix", "log_err_suffix"):
             assert required in names
+        for removed in ("log_prefix", "log_suffix", "err_prefix", "err_suffix"):
+            assert removed not in names
+        mkdir_spec = next(
+            prop for prop in NODE_SPECS["loader_execute"].properties
+            if prop.name == "mkdir_p"
+        )
+        assert not mkdir_spec.multiline
 
 
 def test_custom_command_build_properties_match_v8_design():
