@@ -103,14 +103,14 @@ def validate_loader_graph(graph: Graph) -> list[str]:
     variables: list[str] = []
     for declaration in declarations:
         variable = str(declaration.properties.get("variable_name", "")).strip()
-        branch = str(declaration.properties.get("branch", "")).strip()
+        tree = str(declaration.properties.get("tree", "")).strip()
         if not _CPP_IDENTIFIER.fullmatch(variable):
             errors.append(
                 f"{declaration.title}: '{variable}' is not a valid C++ variable name."
             )
         variables.append(variable)
-        if not branch:
-            errors.append(f"{declaration.title}: tree / branch name is empty.")
+        if not tree:
+            errors.append(f"{declaration.title}: tree name is empty.")
         if graph.incoming(declaration.id):
             errors.append(f"{declaration.title}: Loader Declaration must be a start node.")
 

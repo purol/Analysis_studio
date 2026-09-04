@@ -248,9 +248,8 @@ def _specs() -> list[NodeSpec]:
             inputs=(),
             outputs=("out",),
             properties=(
-                P("variable_name", "C++ variable name", "text", "loader"),
-                P("branch", "Tree / branch name", "text", "tau_lfv"),
-                P("loader_class", "Loader class", "text", "Loader"),
+                P("variable_name", "Loader name", "text", "_any_name_"),
+                P("tree", "Tree name", "text", "_your_tree_"),
             ),
         ),
         NodeSpec(

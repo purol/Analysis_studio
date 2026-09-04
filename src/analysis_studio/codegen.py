@@ -35,9 +35,8 @@ def _loader_variable(graph: Graph, node: WorkflowNode) -> str:
 def loader_node_to_cpp(graph: Graph, node: WorkflowNode) -> list[str]:
     p = node.properties
     if node.type == "loader_decl":
-        loader_class = str(p.get("loader_class", "Loader"))
         variable = str(p["variable_name"])
-        return [f"{loader_class} {variable}({cpp_string(p['branch'])});"]
+        return [f"Loader {variable}({cpp_string(p['tree'])});"]
     if node.type == "raw_cpp":
         return str(p["code"]).splitlines()
 
