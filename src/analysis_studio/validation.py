@@ -98,7 +98,6 @@ def validate_loader_graph(graph: Graph) -> list[str]:
         errors.append(f"{graph.name}: add at least one Loader Declaration block.")
         return errors
 
-    variables: list[str] = []
     for declaration in declarations:
         tree = str(declaration.properties.get("tree", "")).strip()
 

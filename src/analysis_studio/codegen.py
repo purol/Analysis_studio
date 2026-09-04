@@ -99,10 +99,7 @@ def generate_loader_cpp(graph: Graph) -> str:
         if node.type == "loader_decl"
     ]
 
-    loader_names = {
-        declaration.id: f"loader_{index}"
-        for index, declaration in enumerate(declarations, start = 1)
-    }
+    loader_names = _loader_names(graph)
 
     topological_nodes = graph.topological_order()
 

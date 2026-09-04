@@ -561,9 +561,6 @@ class Project:
     name: str
     workflow: Graph
     loader_programs: dict[str, Graph]
-    # Kept only to read v0.1/v0.2 projects. Version 3 stores For Each bodies as
-    # visible regions on the main workflow graph.
-    foreach_graphs: dict[str, Graph] = field(default_factory=dict)
     backend: str = "local"
     backend_options: dict[str, object] = field(
         default_factory=lambda: {
@@ -596,10 +593,6 @@ class Project:
             workflow=Graph(id="workflow", name="Workflow", scope="workflow"),
             loader_programs={},
         )
-
-    @property
-    def loader_graphs(self) -> dict[str, Graph]:
-        return self.loader_programs
 
     def create_loader_program(self, name: str) -> Graph:
         program_name = name.strip()
@@ -655,8 +648,6 @@ class Project:
 
     def to_dict(self) -> dict[str, object]:
         data = asdict(self)
-        # Do not perpetuate the old hidden-body representation in new files.
-        data["foreach_graphs"] = {}
         return data
 
     @classmethod
@@ -675,21 +666,14 @@ class Project:
             )
 
         workflow = graph_from_dict(data["workflow"])
-        raw_programs = data.get("loader_programs")
-        if raw_programs is None:
-            raw_programs = data.get("loader_graphs", {})
+        raw_programs = data.get("loader_programs", {})
         loader_programs = {
             key: graph_from_dict(value) for key, value in dict(raw_programs).items()
-        }
-        foreach_graphs = {
-            key: graph_from_dict(value)
-            for key, value in dict(data.get("foreach_graphs", {})).items()
         }
         project = cls(
             name=str(data.get("name", "Untitled analysis")),
             workflow=workflow,
             loader_programs=loader_programs,
-            foreach_graphs=foreach_graphs,
             backend=str(data.get("backend", "local")),
             backend_options=dict(data.get("backend_options", {})),
             build_options=dict(data.get("build_options", {})),
@@ -707,7 +691,6 @@ class Project:
         return project
 
     def _fill_current_defaults(self) -> None:
-        """Fill settings introduced by newer versions without discarding values."""
         from .registry import NODE_SPECS
 
         backend_defaults = {
@@ -728,39 +711,19 @@ class Project:
                 "-lFastBDT_static"
             ),
         }
-        allowed_backend_keys = set(backend_defaults)
-        self.backend_options = {
-            key: value
-            for key, value in self.backend_options.items()
-            if key in allowed_backend_keys
-        }
+
         for key, value in backend_defaults.items():
             self.backend_options.setdefault(key, value)
+
         for key, value in build_defaults.items():
             self.build_options.setdefault(key, value)
+
         for graph in [self.workflow, *self.loader_programs.values()]:
             for node in graph.nodes:
                 spec = NODE_SPECS.get(node.type)
                 if spec:
                     for prop in spec.properties:
                         node.properties.setdefault(prop.name, prop.default)
-                if node.type in {"loader_execute", "custom_command"}:
-                    for obsolete in (
-                        "local_max_parallel",
-                        "lsf_max_inflight",
-                        "lsf_extra_options",
-                        "working_directory",
-                        "output_dir",
-                        "job_name",
-                    ):
-                        node.properties.pop(obsolete, None)
-                if node.type == "custom_command":
-                    node.properties.pop("output_name", None)
-                    node.properties.pop("use_analysis_framework", None)
-                    if str(node.properties.get("build_mode", "auto")) == "copy":
-                        node.properties["build_mode"] = "auto"
-            for region in graph.foreach_regions:
-                region.properties.pop("max_parallel", None)
 
     def save(self, path: str | Path) -> None:
         target = Path(path)
