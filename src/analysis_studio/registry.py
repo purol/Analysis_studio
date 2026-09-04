@@ -248,7 +248,6 @@ def _specs() -> list[NodeSpec]:
             inputs=(),
             outputs=("out",),
             properties=(
-                P("variable_name", "Loader name", "text", "_any_name_"),
                 P("tree", "Tree name", "text", "_your_tree_"),
             ),
         ),
