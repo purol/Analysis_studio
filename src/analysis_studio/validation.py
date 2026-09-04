@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections import Counter
 from pathlib import Path
 import re
 
@@ -16,7 +15,6 @@ from .model import (
 from .registry import NODE_SPECS
 
 
-_CPP_IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
 def split_references(value: object) -> list[str]:
@@ -102,21 +100,12 @@ def validate_loader_graph(graph: Graph) -> list[str]:
 
     variables: list[str] = []
     for declaration in declarations:
-        variable = str(declaration.properties.get("variable_name", "")).strip()
         tree = str(declaration.properties.get("tree", "")).strip()
-        if not _CPP_IDENTIFIER.fullmatch(variable):
-            errors.append(
-                f"{declaration.title}: '{variable}' is not a valid C++ variable name."
-            )
-        variables.append(variable)
+
         if not tree:
             errors.append(f"{declaration.title}: tree name is empty.")
         if graph.incoming(declaration.id):
             errors.append(f"{declaration.title}: Loader Declaration must be a start node.")
-
-    for variable, count in Counter(variables).items():
-        if variable and count > 1:
-            errors.append(f"{graph.name}: Loader variable '{variable}' is duplicated.")
 
     for component in _undirected_components(graph):
         component_ids = {node.id for node in component}
