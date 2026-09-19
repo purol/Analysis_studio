@@ -41,6 +41,7 @@ from .graphics import BlockPalette, GraphScene, GraphView
 from .model import Graph, Project, PropertySpec, WorkflowNode
 from .properties import PropertyEditor
 from .validation import validate_project
+from .recipes import add_analysis_starter
 
 
 class GraphEditor(QWidget):
@@ -751,6 +752,7 @@ class MainWindow(QMainWindow):
             return
         try:
             graph = self.project.create_loader_program(name)
+            add_analysis_starter(graph)
         except ValueError as exc:
             QMessageBox.warning(self, "Could not create Loader program", str(exc))
             return

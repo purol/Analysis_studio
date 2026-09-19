@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
+from copy import deepcopy
 from pathlib import Path
 import hashlib
 import itertools
@@ -94,6 +95,8 @@ class PropertySpec:
     choices: tuple[str, ...] = ()
     multiline: bool = False
     help: str = ""
+    columns: tuple["PropertySpec", ...] = ()
+    advanced: bool = False
 
 
 @dataclass(frozen=True)
@@ -108,7 +111,7 @@ class NodeSpec:
     properties: tuple[PropertySpec, ...] = ()
 
     def defaults(self) -> dict[str, object]:
-        return {item.name: item.default for item in self.properties}
+        return {item.name: deepcopy(item.default) for item in self.properties}
 
 
 @dataclass
@@ -278,6 +281,12 @@ class Graph:
             properties=spec.defaults(),
         )
         self.nodes.append(node)
+        if spec.key == "loader_decl":
+            used = {n.properties.get("variable_name") for n in self.nodes if n.id != node.id}
+            index = 2
+            while node.properties["variable_name"] in used:
+                node.properties["variable_name"] = f"loader_{index}"
+                index += 1
         self.normalize_root_order()
         return node
 
@@ -1194,7 +1203,7 @@ class Project:
                     )
             if spec:
                 for prop in spec.properties:
-                    node.properties.setdefault(prop.name, prop.default)
+                    node.properties.setdefault(prop.name, deepcopy(prop.default))
         self.version = 7
 
     def _migrate_v7(self) -> None:
@@ -1303,7 +1312,7 @@ class Project:
                 spec = NODE_SPECS.get(node.type)
                 if spec:
                     for prop in spec.properties:
-                        node.properties.setdefault(prop.name, prop.default)
+                        node.properties.setdefault(prop.name, deepcopy(prop.default))
                 if node.type in {"loader_execute", "custom_command"}:
                     for obsolete in (
                         "local_max_parallel",

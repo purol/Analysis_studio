@@ -108,6 +108,7 @@ class NodeItem(QGraphicsRectItem):
         self.type_item = QGraphicsTextItem(spec.label, self)
         self.type_item.setDefaultTextColor(QColor("#b8c2cf"))
         self.type_item.setPos(10.0, HEADER_HEIGHT + 9.0)
+        self.refresh_summary()
 
         self.badge_circle = QGraphicsEllipseItem(
             NODE_WIDTH - 31.0, 6.0, 24.0, 24.0, self
@@ -133,6 +134,15 @@ class NodeItem(QGraphicsRectItem):
     def set_title(self, title: str) -> None:
         self.node.title = title
         self.title_item.setPlainText(title)
+
+    def refresh_summary(self) -> None:
+        key = {"samples": "samples", "cut_flow": "steps", "plot_set": "plots"}.get(self.node.type)
+        if key:
+            rows = self.node.properties.get(key, [])
+            count = sum(bool(row.get("enabled", True)) for row in rows if isinstance(row, dict))
+            self.type_item.setPlainText(f"{count} / {len(rows)} active {key}")
+        elif self.node.type == "fit":
+            self.type_item.setPlainText(f"{self.node.properties.get('expression', '')} · {self.node.properties.get('model', '')}")
 
     def set_start_order(self, order: int | None) -> None:
         visible = order is not None
@@ -600,6 +610,7 @@ class GraphScene(QGraphicsScene):
         }
         for node_id, item in self.node_items.items():
             item.set_start_order(order.get(node_id))
+            item.refresh_summary()
 
 
     def copy_selected(self) -> bool:

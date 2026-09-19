@@ -12,6 +12,7 @@ from .model import (
     safe_program_name,
 )
 from .validation import loader_declaration_for_node, validate_loader_graph
+from .recipe_codegen import recipe_to_cpp
 
 
 def cpp_string(value: object) -> str:
@@ -42,6 +43,8 @@ def loader_node_to_cpp(graph: Graph, node: WorkflowNode) -> list[str]:
         return str(p["code"]).splitlines()
 
     loader = _loader_variable(graph, node)
+    if node.type in {"samples", "cut_flow", "plot_set", "fit", "print_information"}:
+        return recipe_to_cpp(loader, node)
     if node.type == "loader_end":
         return [f"{loader}.end();"]
     if node.type == "load":
@@ -109,6 +112,7 @@ def generate_loader_cpp(graph: Graph) -> str:
 #include <string>
 #include <vector>
 #include <map>
+#include <filesystem>
 
 #include "TFile.h"
 #include "Loader.h"

@@ -1,0 +1,312 @@
+{
+  "name": "Tau selection and fits",
+  "workflow": {
+    "id": "workflow",
+    "name": "Workflow",
+    "scope": "workflow",
+    "nodes": [
+      {
+        "id": "node_f8ae8575d60d",
+        "type": "loader_execute",
+        "title": "Run tau selection",
+        "x": 100,
+        "y": 100,
+        "properties": {
+          "loader_program": "loader_program_cc8258f12a60",
+          "argv": "./Ntuple",
+          "mkdir_p": "",
+          "log_err_prefix": "",
+          "log_err_suffix": "",
+          "lsf_queue": "s"
+        }
+      }
+    ],
+    "edges": [],
+    "root_order": [
+      "node_f8ae8575d60d"
+    ],
+    "foreach_regions": []
+  },
+  "loader_programs": {
+    "loader_program_cc8258f12a60": {
+      "id": "loader_program_cc8258f12a60",
+      "name": "tau_selection",
+      "scope": "loader",
+      "nodes": [
+        {
+          "id": "node_0f4d138a04aa",
+          "type": "loader_decl",
+          "title": "Tau tree",
+          "x": 0,
+          "y": 70,
+          "properties": {
+            "variable_name": "loader",
+            "branch": "tau_lfv",
+            "loader_class": "Loader"
+          }
+        },
+        {
+          "id": "node_ae716e027236",
+          "type": "samples",
+          "title": "Signal input",
+          "x": 290,
+          "y": 70,
+          "properties": {
+            "samples": [
+              {
+                "enabled": true,
+                "directory": "./Ntuple",
+                "argument": 1,
+                "including": ".root",
+                "label": "SIGNAL",
+                "condition": ""
+              }
+            ]
+          }
+        },
+        {
+          "id": "node_fbd1eb65e70c",
+          "type": "cut_flow",
+          "title": "Preselection",
+          "x": 580,
+          "y": 70,
+          "properties": {
+            "steps": [
+              {
+                "enabled": true,
+                "name": "Energy window",
+                "condition": "(-0.3 < deltaE) && (deltaE < 0.15)",
+                "report": true
+              },
+              {
+                "enabled": true,
+                "name": "Mass window",
+                "condition": "(1.71 < M) && (M < 1.82)",
+                "report": true
+              },
+              {
+                "enabled": false,
+                "name": "Leading muon ID",
+                "condition": "0.5 < first_muon_muonID",
+                "report": true
+              },
+              {
+                "enabled": false,
+                "name": "Second muon ID",
+                "condition": "0.5 < second_muon_muonID",
+                "report": true
+              }
+            ],
+            "plot_timing": "none",
+            "plots": [
+              {
+                "enabled": true,
+                "expression": "M",
+                "title": ";M [GeV];Events",
+                "bins": 50,
+                "minimum": 1.5,
+                "maximum": 1.9,
+                "filename": "M.png"
+              }
+            ],
+            "output_directory": "plots"
+          }
+        },
+        {
+          "id": "node_3319ad87656f",
+          "type": "plot_set",
+          "title": "Selected distributions",
+          "x": 870,
+          "y": 70,
+          "properties": {
+            "plots": [
+              {
+                "enabled": true,
+                "expression": "M",
+                "title": ";M [GeV];Events",
+                "bins": 50,
+                "minimum": 1.5,
+                "maximum": 1.9,
+                "filename": "M.png"
+              },
+              {
+                "enabled": true,
+                "expression": "deltaE",
+                "title": ";deltaE [GeV];Events",
+                "bins": 60,
+                "minimum": -0.3,
+                "maximum": 0.15,
+                "filename": "deltaE.png"
+              }
+            ],
+            "output_directory": "plots"
+          }
+        },
+        {
+          "id": "node_93e8eb2d3f2d",
+          "type": "fit",
+          "title": "Mass fit",
+          "x": 1160,
+          "y": 70,
+          "properties": {
+            "expression": "M",
+            "minimum": 1.71,
+            "maximum": 1.82,
+            "model": "RooBifurGauss",
+            "parameters": [
+              {
+                "name": "mean",
+                "value": 1.777,
+                "minimum": 1.7,
+                "maximum": 1.85,
+                "constant": false
+              },
+              {
+                "name": "sigma_left",
+                "value": 0.005,
+                "minimum": 1e-05,
+                "maximum": 0.1,
+                "constant": false
+              },
+              {
+                "name": "sigma_right",
+                "value": 0.005,
+                "minimum": 1e-05,
+                "maximum": 0.1,
+                "constant": false
+              }
+            ],
+            "sumw2": true,
+            "use_fit_range": true,
+            "fit_minimum": 1.77,
+            "fit_maximum": 1.785,
+            "strategy": "1",
+            "bins": 100,
+            "plot_filename": "plots/M_fit.png",
+            "workspace_filename": "",
+            "result_filename": "results/M_parameters.root"
+          }
+        },
+        {
+          "id": "node_f2fbcacda4ff",
+          "type": "fit",
+          "title": "Energy fit",
+          "x": 1450,
+          "y": 70,
+          "properties": {
+            "expression": "deltaE",
+            "minimum": -0.3,
+            "maximum": 0.15,
+            "model": "RooBifurGauss",
+            "parameters": [
+              {
+                "name": "mean",
+                "value": 0,
+                "minimum": -0.1,
+                "maximum": 0.1,
+                "constant": false
+              },
+              {
+                "name": "sigma_left",
+                "value": 0.014,
+                "minimum": 0.008,
+                "maximum": 0.02,
+                "constant": false
+              },
+              {
+                "name": "sigma_right",
+                "value": 0.014,
+                "minimum": 0.008,
+                "maximum": 0.02,
+                "constant": false
+              }
+            ],
+            "sumw2": true,
+            "use_fit_range": true,
+            "fit_minimum": -0.02,
+            "fit_maximum": 0.02,
+            "strategy": "1",
+            "bins": 100,
+            "plot_filename": "plots/deltaE_fit.png",
+            "workspace_filename": "results/workspace.root",
+            "result_filename": "results/deltaE_parameters.root"
+          }
+        },
+        {
+          "id": "node_0ea6b14a28ff",
+          "type": "loader_end",
+          "title": "Run analysis",
+          "x": 1740,
+          "y": 70,
+          "properties": {}
+        }
+      ],
+      "edges": [
+        {
+          "id": "edge_aed9e6f66298",
+          "source": "node_0f4d138a04aa",
+          "source_port": "out",
+          "target": "node_ae716e027236",
+          "target_port": "in"
+        },
+        {
+          "id": "edge_6f5d91a67eea",
+          "source": "node_ae716e027236",
+          "source_port": "out",
+          "target": "node_fbd1eb65e70c",
+          "target_port": "in"
+        },
+        {
+          "id": "edge_36ca99556adc",
+          "source": "node_fbd1eb65e70c",
+          "source_port": "out",
+          "target": "node_3319ad87656f",
+          "target_port": "in"
+        },
+        {
+          "id": "edge_99e8af7f08e0",
+          "source": "node_3319ad87656f",
+          "source_port": "out",
+          "target": "node_93e8eb2d3f2d",
+          "target_port": "in"
+        },
+        {
+          "id": "edge_218b077ed7e7",
+          "source": "node_93e8eb2d3f2d",
+          "source_port": "out",
+          "target": "node_f2fbcacda4ff",
+          "target_port": "in"
+        },
+        {
+          "id": "edge_12d84b1586a0",
+          "source": "node_f2fbcacda4ff",
+          "source_port": "out",
+          "target": "node_0ea6b14a28ff",
+          "target_port": "in"
+        }
+      ],
+      "root_order": [
+        "node_0f4d138a04aa"
+      ],
+      "foreach_regions": []
+    }
+  },
+  "foreach_graphs": {},
+  "backend": "local",
+  "backend_options": {
+    "local_workers": 4,
+    "lsf_poll_seconds": 10,
+    "lsf_max_active_jobs": 500,
+    "lsf_cancel_on_failure": true,
+    "condor_universe": "vanilla"
+  },
+  "build_options": {
+    "compiler": "g++",
+    "cpp_standard": "c++17",
+    "belle2_analysis_dir": "../../Belle2_analysis",
+    "common_compile_flags": "",
+    "common_link_flags": "",
+    "loader_libraries": "-lRooFit\n-lRooStats\n-lRooFitCore\n-lMinuit\n-lFastBDT_static"
+  },
+  "version": 10
+}

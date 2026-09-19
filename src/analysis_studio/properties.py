@@ -10,10 +10,12 @@ from PySide6.QtWidgets import (
     QComboBox,
     QDoubleSpinBox,
     QFormLayout,
+    QGroupBox,
     QHBoxLayout,
     QHeaderView,
     QLabel,
     QLineEdit,
+    QLayout,
     QPlainTextEdit,
     QPushButton,
     QScrollArea,
@@ -26,6 +28,8 @@ from PySide6.QtWidgets import (
 
 from .foreach_tokens import source_fields, token_bindings, token_definitions
 from .graphics import GraphScene
+from .table_editor import RecipeTableEditor
+from .recipes import parameter_preset
 from .model import (
     ForEachRegion,
     Project,
@@ -224,6 +228,7 @@ class PropertyEditor(QScrollArea):
         self.project_directory = Path.cwd()
         self._container = QWidget()
         self._layout = QVBoxLayout(self._container)
+        self._layout.setSizeConstraint(QLayout.SizeConstraint.SetMinAndMaxSize)
         self.setWidget(self._container)
         self.show_empty()
 
@@ -415,21 +420,52 @@ class PropertyEditor(QScrollArea):
 
         form_widget = QWidget()
         form = QFormLayout(form_widget)
+        form.setSizeConstraint(QLayout.SizeConstraint.SetMinimumSize)
+        form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
+        form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
         title = QLineEdit(self.node.title)
         title.editingFinished.connect(lambda: self._set_node_title(title.text()))
         form.addRow("Block name", title)
 
+        advanced_group = QGroupBox("Advanced implementation settings")
+        advanced_group.setCheckable(True)
+        advanced_group.setChecked(False)
+        advanced_layout = QVBoxLayout(advanced_group)
+        advanced_content = QWidget()
+        advanced_form = QFormLayout(advanced_content)
+        advanced_form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
+        advanced_layout.addWidget(advanced_content)
+        advanced_content.setVisible(False)
+        advanced_group.toggled.connect(advanced_content.setVisible)
+        has_advanced = False
         for prop in spec.properties:
             if not self._node_property_visible(prop):
                 continue
             widget = self._make_node_editor(
                 prop, self.node.properties.get(prop.name, prop.default)
             )
-            form.addRow(prop.label, widget)
+            target_form = advanced_form if prop.advanced else form
+            has_advanced = has_advanced or prop.advanced
+            if prop.kind == "table":
+                target_form.addRow(QLabel(prop.label))
+                target_form.addRow(widget)
+            else:
+                target_form.addRow(prop.label, widget)
+            if self.node.type == "fit" and prop.name == "parameters":
+                preset = QPushButton("Replace parameters with model preset")
+                preset.setToolTip("Replace all parameter rows using the selected PDF model's defaults.")
+                preset.clicked.connect(lambda checked=False, editor=widget: editor.replace_rows(
+                    parameter_preset(str(self.node.properties["model"]))
+                ))
+                form.addRow(preset)
             if prop.help:
-                form.addRow("", self._help_label(prop.help))
+                target_form.addRow(self._help_label(prop.help))
 
         self._layout.addWidget(form_widget)
+        if has_advanced:
+            self._layout.addWidget(advanced_group)
+        else:
+            advanced_group.deleteLater()
         self._layout.addStretch(1)
 
     def show_region(self, scene: GraphScene, region_id: str) -> None:
@@ -547,7 +583,7 @@ class PropertyEditor(QScrollArea):
         self.scene.refresh_start_badges()
         self.scene.graph_changed.emit()
         self.property_changed.emit()
-        refresh_panel = name in {"loader_program", "build_mode"} or (
+        refresh_panel = name in {"loader_program", "build_mode", "plot_timing", "use_fit_range"} or (
             self.node.type == "custom_command" and name == "code"
         )
         if refresh_panel:
@@ -580,6 +616,10 @@ class PropertyEditor(QScrollArea):
         setter,
         dynamic: bool,
     ) -> QWidget:
+        if prop.kind == "table":
+            widget = RecipeTableEditor(prop.columns, value)
+            widget.changed.connect(lambda rows, name=prop.name: setter(name, rows))
+            return widget
         if prop.kind == "choice":
             widget = QComboBox()
             widget.addItems(prop.choices)

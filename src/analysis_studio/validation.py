@@ -14,6 +14,7 @@ from .model import (
     ForEachRegion, Graph, Project, WorkflowNode, custom_command_output_names,
 )
 from .registry import NODE_SPECS
+from .recipe_validation import validate_recipe
 
 
 _CPP_IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
@@ -90,6 +91,8 @@ def loader_declaration_for_node(graph: Graph, node: WorkflowNode) -> WorkflowNod
 
 def validate_loader_graph(graph: Graph) -> list[str]:
     errors = graph.validate(NODE_SPECS)
+    for node in graph.nodes:
+        errors.extend(validate_recipe(node))
     if graph.scope != "loader":
         return [*errors, f"{graph.name}: expected a Loader program graph."]
     if not graph.nodes:

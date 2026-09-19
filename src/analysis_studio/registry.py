@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from .model import NodeSpec, PropertySpec
+from .recipes import recipe_specs
 
 
 P = PropertySpec
@@ -38,6 +39,10 @@ def node_property_visible(
     properties: dict[str, object],
 ) -> bool:
     """Return whether a node property belongs in the current property panel."""
+    if node_type == "cut_flow" and property_name in {"plots", "output_directory"}:
+        return properties.get("plot_timing", "none") != "none"
+    if node_type == "fit" and property_name in {"fit_minimum", "fit_maximum"}:
+        return bool(properties.get("use_fit_range", False))
     if property_name == "lsf_queue" and backend != "lsf":
         return False
     if (
@@ -241,16 +246,16 @@ def _specs() -> list[NodeSpec]:
         ),
         NodeSpec(
             "loader_decl",
-            "Loader Declaration",
+            "Data Source",
             "Loader",
             "loader",
             "#7651a8",
             inputs=(),
             outputs=("out",),
             properties=(
-                P("variable_name", "C++ variable name", "text", "loader"),
+                P("variable_name", "C++ variable name", "text", "loader", advanced=True),
                 P("branch", "Tree / branch name", "text", "tau_lfv"),
-                P("loader_class", "Loader class", "text", "Loader"),
+                P("loader_class", "Loader class", "text", "Loader", advanced=True),
             ),
         ),
         NodeSpec(
@@ -364,8 +369,9 @@ def _specs() -> list[NodeSpec]:
     ]
 
 
-NODE_SPECS = {spec.key: spec for spec in _specs()}
+NODE_SPECS = {spec.key: spec for spec in [*_specs(), *recipe_specs()]}
 
 
 def specs_for_scope(scope: str) -> list[NodeSpec]:
-    return [spec for spec in NODE_SPECS.values() if spec.scope == scope]
+    return sorted((spec for spec in NODE_SPECS.values() if spec.scope == scope),
+                  key=lambda spec: spec.category != "Analysis tasks")

@@ -32,6 +32,23 @@ python3 -m pip install -e .
 analysis-studio-cli --help
 ```
 
+## Analysis task editor
+
+Loader programs now start with a connected Data Source → Samples → Cut Flow → End
+template. Ordered tables collect input samples, selection stages and plot sets;
+the Fit task handles common PDFs, parameter presets, fit ranges and ROOT outputs.
+Implementation settings are collapsed under Advanced.
+
+Open `examples/analysis_tasks/tau_selection.astudio.json` for a working editor
+example inspired by Belle_tau. See [the task editor guide](docs/analysis_tasks.md)
+for usage, supported fit models and validation limits.
+
+On Windows, launch from a GUI environment with:
+
+```powershell
+.\.venv\Scripts\python.exe run_analysis_studio.py
+```
+
 ## License
 
 Analysis Studio source is MIT licensed. PySide6/Qt is a separate optional GUI

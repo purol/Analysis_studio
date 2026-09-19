@@ -12,13 +12,14 @@ QMenuBar, QMenu, QToolBar, QStatusBar {
     background: #1b2129;
     color: #e7ebef;
 }
-QTreeWidget, QPlainTextEdit, QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox {
+QTreeWidget, QTableWidget, QPlainTextEdit, QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox {
     background: #171c23;
     color: #e7ebef;
     border: 1px solid #3b4654;
     selection-background-color: #426c8a;
 }
 QTreeWidget::item { padding: 4px; }
+QHeaderView::section { background: #354253; color: #e7ebef; padding: 5px; }
 QTabWidget::pane { border: 1px solid #3b4654; }
 QTabBar::tab {
     background: #1b2129;
