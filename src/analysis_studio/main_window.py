@@ -491,7 +491,7 @@ class MainWindow(QMainWindow):
         editor.scene.node_selected.connect(
             lambda node_id, scene=editor.scene: self.properties.show_node(
                 scene, node_id
-            ) if node_id else None
+            ) if node_id or self.properties.scene is scene else None
         )
         editor.scene.region_selected.connect(
             lambda region_id, scene=editor.scene: self.properties.show_region(

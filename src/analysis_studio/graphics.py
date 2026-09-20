@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import math
 
-from PySide6.QtCore import QByteArray, QMimeData, QPointF, QRectF, Qt, Signal
+from PySide6.QtCore import QByteArray, QMimeData, QPointF, QRectF, QSignalBlocker, Qt, Signal
 from PySide6.QtGui import (
     QBrush,
     QColor,
@@ -413,19 +413,23 @@ class GraphScene(QGraphicsScene):
         self.rebuild()
 
     def rebuild(self) -> None:
-        self.clear()
-        self.node_items.clear()
-        self.edge_items.clear()
-        self.region_items.clear()
-        self.pending_port = None
-        for region in self.graph.foreach_regions:
-            self._add_region_item(region)
-        for node in self.graph.nodes:
-            self._add_node_item(node)
-        for edge in self.graph.edges:
-            self._add_edge_item(edge)
-        self.refresh_region_memberships()
-        self.refresh_start_badges()
+        # clear() changes selection incrementally. Old items may already have
+        # been removed from the model, so publish selection only after rebuilding.
+        with QSignalBlocker(self):
+            self.pending_port = None
+            self.clear()
+            self.node_items.clear()
+            self.edge_items.clear()
+            self.region_items.clear()
+            for region in self.graph.foreach_regions:
+                self._add_region_item(region)
+            for node in self.graph.nodes:
+                self._add_node_item(node)
+            for edge in self.graph.edges:
+                self._add_edge_item(edge)
+            self.refresh_region_memberships()
+            self.refresh_start_badges()
+        self._selection_changed()
 
     def _add_node_item(self, node: WorkflowNode) -> NodeItem:
         item = NodeItem(node)

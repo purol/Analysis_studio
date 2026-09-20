@@ -351,8 +351,13 @@ class PropertyEditor(QScrollArea):
         if not node_id:
             self.show_empty()
             return
+        try:
+            node = scene.graph.node(node_id)
+        except KeyError:
+            self.show_empty()
+            return
         self.scene = scene
-        self.node = scene.graph.node(node_id)
+        self.node = node
         self.region = None
         spec = NODE_SPECS[self.node.type]
         self.clear_layout()
@@ -499,9 +504,14 @@ class PropertyEditor(QScrollArea):
         if not region_id:
             self.show_empty()
             return
+        try:
+            region = scene.graph.region(region_id)
+        except KeyError:
+            self.show_empty()
+            return
         self.scene = scene
         self.node = None
-        self.region = scene.graph.region(region_id)
+        self.region = region
         self.clear_layout()
 
         heading = QLabel("<b>For Each Region</b>")
@@ -618,7 +628,8 @@ class PropertyEditor(QScrollArea):
         if refresh_panel:
             scene = self.scene
             node_id = self.node.id
-            QTimer.singleShot(0, lambda: self.show_node(scene, node_id))
+            QTimer.singleShot(0, lambda: self.show_node(scene, node_id)
+                              if self.scene is scene and self.node and self.node.id == node_id else None)
 
     def _set_region_property(self, name: str, value: object) -> None:
         if not self.region or not self.scene:
@@ -630,7 +641,8 @@ class PropertyEditor(QScrollArea):
         self.scene.graph_changed.emit()
         self.property_changed.emit()
         if name == "source_mode":
-            QTimer.singleShot(0, lambda: self.show_region(scene, region_id))
+            QTimer.singleShot(0, lambda: self.show_region(scene, region_id)
+                              if self.scene is scene and self.region and self.region.id == region_id else None)
 
     def _make_node_editor(self, prop: PropertySpec, value: object) -> QWidget:
         return self._make_editor(prop, value, self._set_node_property, dynamic=True)
