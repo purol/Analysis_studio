@@ -155,7 +155,14 @@ def validate_module(node):
     if node.type == "bdt_apply":
         require(p, ["classifier", "branch"])
     if node.type == "bdt_evaluate":
-        require(p, ["expression", "filename"])
+        require(p, ["expression"])
+        if "filename" in p:
+            require(p, ["filename"])
+        else:
+            require(p, ["output_directory", "output_name"])
+            name = str(p.get("output_name", "")).strip()
+            if name.lower() in {".", "..", ".png", ".txt"} or any(c in name for c in '/\\:\n\r'):
+                fail("output_name", "enter a filename only; put directories in Output folder.")
         bounds(p)
         if p["metric"] != "AUC":
             positive(p, "bins")

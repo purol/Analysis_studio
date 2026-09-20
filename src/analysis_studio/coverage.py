@@ -2,6 +2,7 @@
 from collections import defaultdict
 from pathlib import Path
 import re
+from .analysis_modules import EXTERNAL_OBJECT_BLOCKS
 
 
 LOADER_COVERAGE = {
@@ -34,5 +35,7 @@ def audit_loader_calls(directory):
     return {
         "files_scanned": len(files),
         "scope": "Direct Loader declarations and dot-method calls in *.cc; excludes comments. Does not analyze ROOT/RooStats algorithms, aliases or macros.",
-        "methods": [{"method": method, "module": LOADER_COVERAGE.get(method), "files": sorted(paths)} for method, paths in sorted(uses.items())],
+        "methods": [{"method": method, "module": LOADER_COVERAGE.get(method),
+                     "gui_available": method in LOADER_COVERAGE and LOADER_COVERAGE[method] not in EXTERNAL_OBJECT_BLOCKS,
+                     "files": sorted(paths)} for method, paths in sorted(uses.items())],
     }

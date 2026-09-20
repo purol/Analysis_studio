@@ -80,9 +80,9 @@ def test_root_objects_live_until_end_and_export_only_afterwards():
 
 
 @pytest.mark.parametrize("metric,fragment", [
-    ("Punzi", 'DrawPunziFOM("BDT_output", 0.0, 1.0, 100, 1000.0, 1.28, 1,'),
-    ("FOM", 'DrawFOM("BDT_output", 0.0, 1.0, 100, 1,'),
-    ("AUC", 'CalculateAUC("BDT_output", 0.0, 1.0, "results/Punzi.png", "w")'),
+    ("Punzi", 'DrawPunziFOM("thrust", 0.0, 1.0, 100, 1000.0, 1.28, 1,'),
+    ("FOM", 'DrawFOM("thrust", 0.0, 1.0, 100, 1,'),
+    ("AUC", 'CalculateAUC("thrust", 0.0, 1.0, "results/optimization.txt", "w")'),
 ])
 def test_bdt_metric_overload_arguments(metric, fragment):
     graph, (node,) = chain("bdt_evaluate")
@@ -188,3 +188,42 @@ def test_same_weight_registers_once_but_is_applied_at_each_position():
     second.properties["weight_object"] = "different_object"
     with pytest.raises(ValueError, match="conflicting EventWeight objects"):
         generate_loader_cpp(graph)
+
+
+@pytest.mark.parametrize("metric,extension", [("Punzi", "png"), ("FOM", "png"), ("AUC", "txt")])
+def test_general_variable_optimization_output_format(metric, extension):
+    graph, (node,) = chain("bdt_evaluate")
+    node.properties.update(metric=metric, expression="muon_p", output_directory="results/scans",
+                           output_name="momentum.v2.png")
+    code = generate_loader_cpp(graph)
+    assert '"muon_p"' in code
+    assert f'"results/scans/momentum.v2.{extension}"' in code
+    assert "FastBDT" not in code
+
+
+@pytest.mark.parametrize("title", ["BDT Performance", "My momentum scan"])
+def test_legacy_optimizer_migrates_path_and_preserves_analysis(tmp_path, title):
+    graph, (node,) = chain("bdt_evaluate")
+    node.title = title
+    node.properties.pop("output_directory")
+    node.properties.pop("output_name")
+    node.properties.update(filename=r"plots\momentum.v2.png", expression="muon_p", metric="AUC")
+    project = Project.empty()
+    project.loader_programs[graph.id] = graph
+    path = tmp_path / "legacy.astudio.json"
+    project.save(path)
+    restored = Project.load(path)
+    migrated = next(n for n in restored.loader_programs[graph.id].nodes if n.id == node.id)
+    assert migrated.title == ("Variable Optimization" if title == "BDT Performance" else title)
+    assert migrated.properties["expression"] == "muon_p"
+    assert migrated.properties["output_directory"] == "plots"
+    assert migrated.properties["output_name"] == "momentum.v2"
+    assert "filename" not in migrated.properties
+    assert '"plots/momentum.v2.txt"' in generate_loader_cpp(restored.loader_programs[graph.id])
+
+
+@pytest.mark.parametrize("name", ["folder/scan", "../scan", ".PNG", ".txt"])
+def test_optimizer_rejects_invalid_output_names(name):
+    graph, (node,) = chain("bdt_evaluate")
+    node.properties["output_name"] = name
+    assert any("output_name" in error for error in validate_loader_graph(graph))

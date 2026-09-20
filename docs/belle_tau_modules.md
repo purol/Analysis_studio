@@ -1,99 +1,85 @@
-# Belle_tau를 기준으로 확장한 GUI 모듈
+# Loader 모듈 GUI 사용 안내
 
-`Belle_tau/analysis_code/src`의 C++ 파일 90개를 조사했습니다.
-주석을 제외한 직접 Loader 호출은 35종이며 모두 GUI 블록으로 연결했습니다.
-이는 메서드 수준의 지원입니다. C++ 제어 흐름이나 ROOT/RooStats 알고리즘 전체의 변환을 의미하지 않습니다.
-[파일별 호출 목록](belle_tau_loader_coverage.json)은 다음 명령으로 재생성할 수 있습니다.
+GUI에서는 Loader의 기능으로 구성되는 작업을 제공합니다.
+외부 C++ 객체·가중치 객체·콜백·포인터를 사용자가 연결하는 방식은 제공하지 않습니다.
+
+## 카테고리와 색상
+
+Loader → Input → Selection → Transform → Plot → Optimization → BDT → Fit → Output → Advanced 순서입니다.
+기존 팔레트에 맞춰 입력은 파랑, 선택/최적화는 주황, 변수 변환은 초록,
+플롯/출력은 장밋빛, BDT/Fit은 보라 계열로 표시합니다. Advanced는 처음에는 접혀 있습니다.
+
+| 카테고리 | 주요 블록 |
+|---|---|
+| Input | Samples, Sample Roles |
+| Selection | Cut Flow, Candidate Selection, Event Split |
+| Transform | Variables, Ranked Variables, Remove Variables |
+| Plot | Plot Set, Stack Plot Set, 2D Plot Set |
+| Optimization | Variable Optimization |
+| BDT | Train FastBDT, Apply FastBDT |
+| Fit | Fit, Profile Fit |
+| Output | ROOT Output, Print Events |
+| Advanced | 기존 Load/Cut/Draw TH1D 등 개별 호출 및 Custom C++ |
+
+## FastBDT와 일반 변수 최적화
+
+Train FastBDT의 Hyperparameter 열에는 항상 보이는 드롭다운이 있습니다.
+NTrees, Depth, Shrinkage, Subsample, Binning 중 선택합니다.
+값은 옆 칸에 입력합니다. 기본 다섯 행이 제공되며 중복 이름과 범위를 검사합니다.
+Apply FastBDT의 입력 변수 순서는 학습 순서와 같아야 합니다.
+
+기존 BDT Performance는 **Variable Optimization**으로 변경했습니다.
+분석 변수나 표현식을 입력하고 Sample Roles에서 Signal/Background를 지정하세요.
+BDT 출력 외에도 thrust, 운동량, 질량 등의 변수에 사용할 수 있습니다. 스캔 범위는 변수에 맞게 조정합니다.
+
+| Metric | 생성 결과 | 자동 확장자 |
+|---|---|---|
+| FOM | 변수의 cut을 스캔한 FOM 그래프 | `.png` |
+| Punzi | 변수의 cut을 스캔한 Punzi FOM 그래프 | `.png` |
+| AUC | 수치 AUC 결과를 기록한 텍스트 파일 | `.txt` |
+
+**Output folder**와 **File name**만 입력합니다. 확장자는 지표에 맞춰 자동으로 붙으며,
+설정 화면의 Output file에 실제 저장 경로가 표시됩니다.
+예를 들어 폴더 `results`, 파일명 `thrust_scan`이면 Punzi는 `results/thrust_scan.png`,
+AUC는 `results/thrust_scan.txt`입니다. 파일명에 `.png`나 `.txt`를 입력해도 중복으로 붙이지 않습니다.
+AUC write mode의 `w`는 덮어쓰기, `a`는 기존 텍스트에 추가하기입니다.
+지표를 바꾸면 같은 폴더와 이름에 새 형식을 적용합니다.
+
+## 외부 객체 블록과 이전 프로젝트
+
+ROOT Histogram, RooDataSet Output, ROOT Profile, Event Weight, C++ Support는
+팔레트에서 제거했으며 외부 객체 연결 편집 화면도 제공하지 않습니다.
+기존 프로젝트에 저장된 블록은 삭제하거나 다른 동작으로 바꾸지 않고 보존합니다.
+선택하면 제외 사유가 표시됩니다. 기존 파일을 읽고 코드를 재생성하기 위한 호환 스키마는 남아 있습니다.
+새 예제에는 이 블록들이 포함되지 않습니다.
+
+**Fit과 Profile Fit은 유지합니다.** 이들은 외부 RooDataSet/TF1 포인터를 연결하지 않고,
+Loader의 DefineAndFillDataSet/DefineAndFillProfile/DefineModel/DefineTF1/Fit API로 구성됩니다.
+가중치 교정표·사용자 콜백·ROOT/RooStats를 직접 사용하는 분석은 현재의 GUI 작업 범위 밖입니다.
+
+이전 BDT Performance 블록은 열 때 Variable Optimization으로 표시하고,
+기존 출력 경로를 폴더와 파일명으로 옮깁니다. 확장자는 현재 지표에 맞춰 결정합니다.
+사용자가 지정한 블록 이름과 변수 식은 보존합니다.
+
+## 예제와 조사 범위
+
+`examples/belle_tau_modules/belle_tau_modules.astudio.json`에는 세 프로그램이 있습니다.
+
+- `selection_modules`: 순위/통계 변수, 선택, BCS, Stack/2D 플롯, Profile Fit, 이벤트 분할 및 ROOT 출력.
+- `train_bdt`: train 디렉터리로 학습.
+- `evaluate_bdt`: test 디렉터리로 적용 및 Variable Optimization으로 AUC/Punzi 출력.
+
+입력 파일은 포함하지 않습니다. tree/가지 이름과 경로를 실제 데이터에 맞추세요.
+예제는 MC 정규화나 muon-ID 교정을 적용하지 않습니다. 분할 출력이 train/test 폴더를 자동 준비하지도 않습니다.
+
+Belle_tau의 C++ 파일 90개에서 직접 Loader 호출 35종을 조사했습니다.
+[파일별 목록](belle_tau_loader_coverage.json)의 `gui_available`이 현재 GUI 제공 여부를 나타냅니다.
+이전의 모든 메서드가 GUI에 있다는 설명은 외부 객체 방식 제외 이후에는 적용되지 않습니다.
 
 ```powershell
 .\.venv\Scripts\python.exe tools/audit_belle_tau.py ../Belle_tau/analysis_code/src
 ```
 
-## 카테고리
-
-`Analysis tasks`는 제거했습니다. 기본 순서는 Loader → Input → Samples & weights → Selection →
-Transform → Plot → BDT → Fit → Output → Advanced입니다.
-Advanced는 처음에는 접혀 있으며, 기존 Load/Load With Cut/Cut/Draw TH1D/Define New Variable/BCS/Print ROOT File/Print Information과
-Custom C++, C++ Support를 모았습니다. 기존 프로젝트의 블록 ID와 저장된 설정은 유지됩니다.
-
-| GUI 블록 | 대응 Loader 메서드 / 사용 목적 |
-|---|---|
-| Samples | Load, LoadWithCut: 여러 디렉터리와 라벨 |
-| Sample Roles | SetMC, SetData, SetSignal, SetBackground: Stack/BDT에 사용할 라벨 분류 |
-| Event Weight | AddWeight: 가중치 이름과 입력 변수 매핑 |
-| Cut Flow / Print Information | Cut, PrintInformation: 선택 단계 및 통계 출력 |
-| Candidate Selection | BCS, RandomBCS, IsBCSValid: 최적/무작위 후보 선택 및 검증 |
-| Event Split | RandomEventSelection: 이벤트 단위 분할 |
-| Variables | DefineNewVariable, GetAverage, GetStdDev, GetDiff; 추가로 GetAdd, GetRandom |
-| Ranked Variables | ConditionalPairDefineNewVariable: 운동량 순위 등에 따른 파생 변수 |
-| Remove Variables | RemoveVariable |
-| Plot Set | DrawTH1D: 수동/자동 binning, 정규화, log scale |
-| Stack Plot Set | DrawStack: 여러 샘플을 쌓은 분포, 정규화, log scale |
-| 2D Plot Set | DrawTH2D: X/Y 식과 범위, bin 수, ROOT draw 옵션 |
-| Train FastBDT | FastBDTTrain: 변수 순서, 사전 선택, hyperparameters, balanced weights |
-| Apply FastBDT | FastBDTApplication: classifier 경로와 출력 가지 |
-| BDT Performance | CalculateAUC, DrawFOM, DrawPunziFOM |
-| ROOT Output | PrintRootFile, PrintSeparateRootFile |
-| Print Events | PrintEvent |
-| ROOT Histogram | FillTH1D, FillCustomizedTH1D: ROOT 파일로 히스토그램 저장 |
-| RooDataSet Output | FillDataSet: 관측량/표현식 매핑과 가중 데이터셋 저장 |
-| ROOT Profile | FillTProfile: TProfile을 ROOT 파일로 저장 |
-| Profile Fit | DefineAndFillProfile, DefineTF1, Fit, PlotFit, ExportFitResult, SaveWorkspace |
-| Fit | 관측량·데이터셋·PDF 정의, 피팅, 플롯 및 ROOT 저장 |
-| End | end: 모듈 실행 및 예약한 ROOT 객체 내보내기 |
-
-## 사용 시 알아둘 설정
-
-- 표의 Operation 셀은 선택 목록입니다. Variables의 여러 입력 식은 `a;b;c`처럼 세미콜론으로 나눕니다.
-  함수 인자의 쉼표와 구분하기 위해 쉼표로 나누지 않습니다. 행 순서가 실행 순서입니다.
-- Ranked Variables의 ranking/value 쌍과 출력 순위를 별도 표로 관리합니다.
-  순위 0은 가장 높은 ranking 값입니다. 같은 ranking 식의 중복은 오류입니다.
-- Event identity columns는 이벤트를 묶는 기준입니다. 기본값은 Loader의 기본 키와 같으며
-  데이터의 이벤트 정의에 맞게 바꿀 수 있습니다. Event Split의 선택 인덱스는 0부터 시작합니다.
-- Sample Roles는 로드한 샘플 라벨을 사용합니다. 같은 라벨을 MC와 Data 또는 Signal과 Background에 동시에 넣을 수 없습니다.
-- FastBDT 적용 변수의 순서는 학습 순서와 같아야 합니다. 모델 파일 내부와의 일치 여부까지 자동 검증하지는 않습니다.
-  Hyperparameter sweep은 프로그램별 설정이나 기존 Workflow For Each/Custom Command를 사용합니다.
-  새로운 숫자 입력란이 자동으로 runtime argv에 바인딩되는 것은 아닙니다.
-- Histogram/Dataset/Profile은 C++ 객체 수명을 Loader 실행까지 유지한 뒤 `end()` 다음에 저장합니다.
-  여러 블록에는 서로 다른 출력 파일명을 지정하세요. 일반 ROOT 객체 저장은 RECREATE 모드입니다.
-- Profile Fit의 TF1 파라미터 행 순서가 `[0]`, `[1]` 순서입니다. 복잡한 TF1 내장 함수의 파라미터 수는
-  프레임워크에서 최종 검사합니다. 프로파일 피팅에는 RooFit SumW2/extended 옵션을 적용하지 않습니다.
-
-## 사용자 정의 가중치·콜백
-
-Event Weight의 C++ 입력은 **함수가 아니라 `EventWeight` 객체의 심볼**입니다.
-예를 들어 헤더를 `code/MyObtainWeight.h`, 객체를 `MC_weight`, 등록 이름을 `MC_weight`로 지정하면
-`EventWeights::Register("MC_weight", MC_weight)`와 `loader.AddWeight(...)`가 생성됩니다.
-같은 객체의 동일 이름 등록은 프로그램당 한 번만 생성합니다. 서로 다른 객체를 같은 이름으로 등록하면 검증 오류입니다.
-객체 심볼을 비우는 경우에는 앞선 C++ Support 등에서 이미 등록되어 있어야 합니다.
-
-ROOT Histogram의 선택적 callback은 `double function(std::vector<double>)` 형태입니다.
-사용할 입력 식은 한 줄에 하나씩 지정하고 함수의 헤더를 연결합니다.
-가중치 교정표나 실제 분석 매핑 함수는 자동 생성하지 않습니다.
-
-C++ Support에서는 프로젝트 상대 경로의 헤더와 추가 `.cc` 파일, 전역 정의,
-현재 위치의 setup 문장, Loader 실행 후 문장을 각각 관리합니다.
-헤더는 main 밖에 include하고 추가 소스는 컴파일에 전달합니다.
-프로젝트 내부의 직접 지원 파일과 재귀적인 quoted include 변경은 빌드 freshness 검사에 반영됩니다.
-외부 교정 데이터 파일과 시스템/프레임워크 헤더는 이 검사의 대상이 아닙니다.
-
-## 예제와 아직 남은 범위
-
-`examples/belle_tau_modules/belle_tau_modules.astudio.json`을 열면 세 프로그램이 있습니다.
-
-- `selection_modules`: 가중치, 순위 변수, 통계 변수, cut, BCS, Stack/2D 플롯, ROOT 객체, profile fit, 이벤트 분할.
-- `train_bdt`: 별도의 train 디렉터리로 모델 학습.
-- `evaluate_bdt`: test 디렉터리로 적용 및 AUC/Punzi 출력. Workflow에서 학습 완료 후 실행합니다.
-
-입력 파일은 포함하지 않습니다. tree/가지 이름과 경로는 실제 데이터에 맞춰야 합니다.
-예제 가중치는 1.0으로 고정된 데모이고, MC 정규화나 muon-ID 교정을 재현하지 않습니다.
-첫 프로그램의 분할 출력이 train/test 폴더를 자동 준비하는 것도 아닙니다.
-
-Belle_tau의 CreateWorkSpace, Run_CLs, Asimov_fit, KS test, toy generation, 결과 병합,
-resolution 파일을 읽어 cut을 구성하는 로직, 히스토그램 간 계산, RooHistPdf/HistFactory 작업은
-직접 ROOT/RooStats 코드가 포함된 상위 분석입니다. 현재 Loader 모듈만으로 동일하게 표현할 수 없습니다.
-해당 단계는 기존 Custom Command 또는 C++ Support로 연결해야 하며 자동 이식했다고 주장하지 않습니다.
-복합/동시 PDF·NLL까지 포괄하는 FitManager 전체 GUI도 이 변경의 메서드 지원 범위와는 별개입니다.
-
-검증: Python 모델/생성 코드/저장·복원/Qt 설정 화면 및 지원 파일 빌드 연결을 테스트했습니다.
-ROOT 및 C++ 컴파일러가 없어 실제 C++ 컴파일, 데이터 입출력, 수치 적합 결과는 검증하지 않았습니다.
+CLs, HistFactory, toy 생성, 직접 ROOT 히스토그램 계산 등 분석 전체의 자동 이식을 지원하는 것은 아닙니다.
+모델/코드 생성/저장·복원/Qt 화면을 테스트했습니다. ROOT와 C++ 컴파일러가 없는 현재 환경에서는
+실제 C++ 컴파일과 데이터 분석 결과를 검증하지 않았습니다.

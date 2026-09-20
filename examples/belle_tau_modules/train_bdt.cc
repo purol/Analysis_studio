@@ -8,7 +8,7 @@
 
 #include "TFile.h"
 #include "Loader.h"
-#include "support/demo.h"
+
 
 
 int main(int argc, char* argv[]) {
@@ -25,10 +25,6 @@ int main(int argc, char* argv[]) {
     loader.SetData({});
     loader.SetSignal({"SIGNAL"});
     loader.SetBackground({"BACKGROUND"});
-
-    // Event Weight
-    EventWeights::Register("demo", demo_weight);
-    loader.AddWeight("demo", {});
 
     // Train FastBDT
     if (!std::filesystem::path("models").empty()) std::filesystem::create_directories(std::filesystem::path("models"));

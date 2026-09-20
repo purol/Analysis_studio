@@ -8,7 +8,7 @@
 
 #include "TFile.h"
 #include "Loader.h"
-#include "support/demo.h"
+
 
 
 int main(int argc, char* argv[]) {
@@ -25,10 +25,6 @@ int main(int argc, char* argv[]) {
     loader.SetData({});
     loader.SetSignal({"SIGNAL"});
     loader.SetBackground({"BACKGROUND"});
-
-    // Event Weight
-    EventWeights::Register("demo", demo_weight);
-    loader.AddWeight("demo", {});
 
     // Ranked Variables
     loader.ConditionalPairDefineNewVariable({{"extraInfo__boOneMuon_p__bc", "extraInfo__boOneMuon_muonID__bc"}, {"extraInfo__boTwoMuon_p__bc", "extraInfo__boTwoMuon_muonID__bc"}, {"extraInfo__boThreeMuon_p__bc", "extraInfo__boThreeMuon_muonID__bc"}}, 0, "first_muon_muonID");
@@ -60,36 +56,14 @@ int main(int argc, char* argv[]) {
     if (!std::filesystem::path("plots/M_deltaE.png").parent_path().empty()) std::filesystem::create_directories(std::filesystem::path("plots/M_deltaE.png").parent_path());
     loader.DrawTH2D("M", "deltaE", ";M [GeV];deltaE [GeV]", 50, 1.5, 1.9, 50, -0.3, 0.15, "plots/M_deltaE.png", "COLZ");
 
-    // ROOT Histogram
-    TH1D studio_60f7293d34a6("histogram", ";M;Events", 50, -0.1, 0.1);
-    studio_60f7293d34a6.SetDirectory(nullptr);
-    studio_60f7293d34a6.Sumw2();
-    loader.FillCustomizedTH1D(&studio_60f7293d34a6, {"M"}, mass_offset);
-
-    // RooDataSet Output
-    RooRealVar studio_a9a0c67536f3_x0("M", "M", 1.71, 1.82);
-    RooRealVar studio_a9a0c67536f3_x1("deltaE", "deltaE", -0.3, 0.15);
-    RooRealVar studio_a9a0c67536f3_weight("weight", "weight", 1.0);
-    RooArgSet studio_a9a0c67536f3_columns;
-    studio_a9a0c67536f3_columns.add(studio_a9a0c67536f3_x0);
-    studio_a9a0c67536f3_columns.add(studio_a9a0c67536f3_x1);
-    studio_a9a0c67536f3_columns.add(studio_a9a0c67536f3_weight);
-    RooDataSet studio_a9a0c67536f3("dataset", "dataset", studio_a9a0c67536f3_columns, RooFit::WeightVar("weight"));
-    loader.FillDataSet(&studio_a9a0c67536f3, {&studio_a9a0c67536f3_x0, &studio_a9a0c67536f3_x1}, {"M", "deltaE"});
-
-    // ROOT Profile
-    TProfile studio_c6cb8a44355c("profile", ";deltaE;M", 100, -0.3, 0.15, 1.71, 1.82);
-    studio_c6cb8a44355c.SetDirectory(nullptr);
-    loader.FillTProfile(&studio_c6cb8a44355c, "deltaE", "M");
-
     // Profile Fit
-    loader.DefineAndFillProfile("studio_5f24973173ad_profile", ";deltaE;M", 100, -0.3, 0.15, 1.71, 1.82, "deltaE", "M");
-    loader.DefineTF1("studio_5f24973173ad_model", "[0] + [1]*x", -0.3, 0.15, {{"intercept", 1.777, 1.7, 1.85, false}, {"slope", 0.0, -1.0, 1.0, false}});
-    loader.Fit("studio_5f24973173ad_fit", "studio_5f24973173ad_profile", "studio_5f24973173ad_model");
+    loader.DefineAndFillProfile("studio_b9a8de7aac6e_profile", ";deltaE;M", 100, -0.3, 0.15, 1.71, 1.82, "deltaE", "M");
+    loader.DefineTF1("studio_b9a8de7aac6e_model", "[0] + [1]*x", -0.3, 0.15, {{"intercept", 1.777, 1.7, 1.85, false}, {"slope", 0.0, -1.0, 1.0, false}});
+    loader.Fit("studio_b9a8de7aac6e_fit", "studio_b9a8de7aac6e_profile", "studio_b9a8de7aac6e_model");
     if (!std::filesystem::path("plots/profile_fit.png").parent_path().empty()) std::filesystem::create_directories(std::filesystem::path("plots/profile_fit.png").parent_path());
-    loader.PlotFit("studio_5f24973173ad_fit", "", "plots/profile_fit.png");
+    loader.PlotFit("studio_b9a8de7aac6e_fit", "", "plots/profile_fit.png");
     if (!std::filesystem::path("results/profile_parameters.root").parent_path().empty()) std::filesystem::create_directories(std::filesystem::path("results/profile_parameters.root").parent_path());
-    loader.ExportFitResult("results/profile_parameters.root", {"studio_5f24973173ad_fit"});
+    loader.ExportFitResult("results/profile_parameters.root", {"studio_b9a8de7aac6e_fit"});
 
     // Event Split
     loader.RandomEventSelection(2, 0, {"__experiment__", "__run__", "__event__", "__production__", "__ncandidates__"});
@@ -100,24 +74,6 @@ int main(int argc, char* argv[]) {
 
     // End
     loader.end();
-    if (!std::filesystem::path("results/histogram.root").parent_path().empty()) std::filesystem::create_directories(std::filesystem::path("results/histogram.root").parent_path());
-    {
-    TFile output("results/histogram.root", "RECREATE");
-    if (output.IsZombie()) throw std::runtime_error("Cannot create ROOT output");
-    studio_60f7293d34a6.Write();
-    }
-    if (!std::filesystem::path("results/dataset.root").parent_path().empty()) std::filesystem::create_directories(std::filesystem::path("results/dataset.root").parent_path());
-    {
-    TFile output("results/dataset.root", "RECREATE");
-    if (output.IsZombie()) throw std::runtime_error("Cannot create ROOT output");
-    studio_a9a0c67536f3.Write();
-    }
-    if (!std::filesystem::path("results/profile.root").parent_path().empty()) std::filesystem::create_directories(std::filesystem::path("results/profile.root").parent_path());
-    {
-    TFile output("results/profile.root", "RECREATE");
-    if (output.IsZombie()) throw std::runtime_error("Cannot create ROOT output");
-    studio_c6cb8a44355c.Write();
-    }
 
     return 0;
 }

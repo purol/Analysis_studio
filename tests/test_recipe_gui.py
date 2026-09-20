@@ -123,3 +123,64 @@ def test_advanced_toggle_is_display_only_for_multiple_declarations(app):
     declarations[1].properties["variable_name"] = "loader"
     assert any("duplicated" in e for e in validate_loader_graph(graph))
     panel.close()
+
+
+def test_fastbdt_dropdown_selection_commits_and_survives_row_move(app):
+    from PySide6.QtWidgets import QComboBox
+    from analysis_studio.analysis_modules import HYPERPARAMETERS
+    graph = Graph("train", "Train", "loader")
+    node = graph.add_node(NODE_SPECS["bdt_train"], 0, 0)
+    node.properties["hyperparameters"] = [dict(name="NTrees", value=3)]
+    scene = GraphScene(graph)
+    panel = PropertyEditor()
+    panel.show_node(scene, node.id)
+    editor = panel.findChild(RecipeTableEditor)
+    table = editor.table
+    combo = table.indexWidget(table.model().index(0, 0))
+    assert isinstance(combo, QComboBox)
+    assert not combo.isEditable()
+    assert [combo.itemText(i) for i in range(combo.count())] == list(HYPERPARAMETERS)
+    combo.setCurrentText("Depth")
+    assert node.properties["hyperparameters"][0]["name"] == "Depth"
+    editor.add_row()
+    editor.move_row(-1)
+    assert [r["name"] for r in node.properties["hyperparameters"]] == ["NTrees", "Depth"]
+    combo = table.indexWidget(table.model().index(1, 0))
+    combo.setCurrentText("Binning")
+    assert node.properties["hyperparameters"][1]["name"] == "Binning"
+    panel.close()
+
+
+def test_optimizer_shows_automatic_output_path_on_metric_change(app):
+    from PySide6.QtWidgets import QLabel
+    graph = Graph("optimization", "Optimization", "loader")
+    node = graph.add_node(NODE_SPECS["bdt_evaluate"], 0, 0)
+    scene = GraphScene(graph)
+    panel = PropertyEditor()
+    panel.show_node(scene, node.id)
+    assert "Output file: results/optimization.png" in [w.text() for w in panel.findChildren(QLabel)]
+    panel._set_node_property("metric", "AUC")
+    app.processEvents()
+    assert "Output file: results/optimization.txt" in [w.text() for w in panel.findChildren(QLabel)]
+    panel._set_node_property("output_name", "momentum")
+    app.processEvents()
+    assert "Output file: results/momentum.txt" in [w.text() for w in panel.findChildren(QLabel)]
+    panel.close()
+
+
+def test_legacy_external_blocks_are_not_offered_or_editable(app):
+    from copy import deepcopy
+    from analysis_studio.analysis_modules import EXTERNAL_OBJECT_BLOCKS
+    from analysis_studio.registry import specs_for_scope
+    assert not EXTERNAL_OBJECT_BLOCKS.intersection(s.key for s in specs_for_scope("loader"))
+    graph = Graph("legacy", "Legacy", "loader")
+    nodes = [graph.add_node(NODE_SPECS[key], 0, 0) for key in EXTERNAL_OBJECT_BLOCKS]
+    scene = GraphScene(graph)
+    panel = PropertyEditor()
+    for node in nodes:
+        before = deepcopy(node.properties)
+        panel.show_node(scene, node.id)
+        assert not panel.findChildren(QLineEdit)
+        assert not panel.findChildren(RecipeTableEditor)
+        assert node.properties == before
+    panel.close()

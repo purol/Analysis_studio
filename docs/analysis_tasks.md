@@ -60,7 +60,9 @@ Belle_tau의 질량/에너지 선택과 BifurGauss 사용 방식을 보여 주�
 이 컴퓨터에서는 Qt 편집 동작, 저장/복원, 생성 코드 순서를 테스트했습니다.
 ROOT와 C++ 컴파일러가 없어 실제 ROOT 컴파일·수치 피팅은 검증하지 않았습니다.
 
-TProfile/TF1, 사용자 가중치 연결, BDT 학습/적용/평가는 전용 블록으로 지원합니다.
+Loader 내부에서 처리되는 Profile Fit과 BDT 학습/적용은 전용 블록으로 지원합니다.
+Variable Optimization은 일반 변수와 BDT 출력 모두의 FOM/Punzi/AUC 평가에 사용합니다.
+외부 객체·심볼 연결을 요구하는 블록은 GUI에서 제외합니다.
 새 카테고리와 전체 대응 목록은 [Belle_tau 모듈 가이드](belle_tau_modules.md)를 참고하세요.
 복합/동시 PDF, NLL, CLs 및 직접 ROOT 후처리 전체를 GUI화한 것은 아닙니다.
 

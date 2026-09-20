@@ -19,12 +19,18 @@ class RecipeCellDelegate(QStyledItemDelegate):
         if prop.kind == "choice":
             editor = QComboBox(parent)
             editor.addItems(prop.choices)
+            editor.currentIndexChanged.connect(lambda _index: self.commitData.emit(editor))
             return editor
         return super().createEditor(parent, option, index)
 
     def setEditorData(self, editor, index):
         if isinstance(editor, QComboBox):
-            editor.setCurrentText(str(index.data()))
+            editor.blockSignals(True)
+            value = str(index.data())
+            if editor.findText(value) < 0:
+                editor.addItem(value)  # Keep invalid legacy values visible for validation.
+            editor.setCurrentText(value)
+            editor.blockSignals(False)
         else:
             super().setEditorData(editor, index)
 
@@ -83,6 +89,8 @@ class RecipeTableEditor(QWidget):
                 else:
                     item.setText(str(value))
                 self.table.setItem(index, col, item)
+                if prop.kind == "choice":
+                    self.table.openPersistentEditor(item)
         self.table.resizeColumnsToContents()
         self.table.blockSignals(False)
         if self.rows:

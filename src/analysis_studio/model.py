@@ -1309,6 +1309,11 @@ class Project:
             self.build_options.setdefault(key, value)
         for graph in [self.workflow, *self.loader_programs.values()]:
             for node in graph.nodes:
+                if node.type == "bdt_evaluate":
+                    from .analysis_modules import migrate_optimization_properties
+                    migrate_optimization_properties(node.properties)
+                    if node.title == "BDT Performance":
+                        node.title = "Variable Optimization"
                 spec = NODE_SPECS.get(node.type)
                 if spec:
                     for prop in spec.properties:

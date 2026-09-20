@@ -5,6 +5,7 @@
     {
       "method": "AddWeight",
       "module": "event_weight",
+      "gui_available": false,
       "files": [
         "Analysis_main.cc",
         "Analysis_main_ALP.cc",
@@ -77,6 +78,7 @@
     {
       "method": "BCS",
       "module": "candidate_selection",
+      "gui_available": true,
       "files": [
         "example_code.cc"
       ]
@@ -84,6 +86,7 @@
     {
       "method": "CalculateAUC",
       "module": "bdt_evaluate",
+      "gui_available": true,
       "files": [
         "FBDT_AUC_test_one.cc",
         "FBDT_AUC_test_one_ALP.cc",
@@ -98,6 +101,7 @@
     {
       "method": "ConditionalPairDefineNewVariable",
       "module": "ranked_variables",
+      "gui_available": true,
       "files": [
         "Analysis_main.cc",
         "Analysis_main_ALP.cc",
@@ -112,6 +116,7 @@
     {
       "method": "Cut",
       "module": "cut_flow",
+      "gui_available": true,
       "files": [
         "Analysis_main.cc",
         "Analysis_main_ALP.cc",
@@ -178,6 +183,7 @@
     {
       "method": "DefineNewVariable",
       "module": "variables",
+      "gui_available": true,
       "files": [
         "Analysis_main.cc",
         "Analysis_main_ALP.cc",
@@ -192,6 +198,7 @@
     {
       "method": "DrawFOM",
       "module": "bdt_evaluate",
+      "gui_available": true,
       "files": [
         "example_code.cc"
       ]
@@ -199,6 +206,7 @@
     {
       "method": "DrawPunziFOM",
       "module": "bdt_evaluate",
+      "gui_available": true,
       "files": [
         "FBDT_PunziFOM_one.cc",
         "FBDT_PunziFOM_one_ALP.cc",
@@ -209,6 +217,7 @@
     {
       "method": "DrawStack",
       "module": "stack_plots",
+      "gui_available": true,
       "files": [
         "Plotter.cc",
         "Plotter_ALP.cc",
@@ -227,6 +236,7 @@
     {
       "method": "DrawTH1D",
       "module": "plot_set",
+      "gui_available": true,
       "files": [
         "example_code.cc"
       ]
@@ -234,6 +244,7 @@
     {
       "method": "DrawTH2D",
       "module": "plots_2d",
+      "gui_available": true,
       "files": [
         "Plotter_2D_MC.cc",
         "Plotter_2D_bkg_half.cc",
@@ -248,6 +259,7 @@
     {
       "method": "FastBDTApplication",
       "module": "bdt_apply",
+      "gui_available": true,
       "files": [
         "FBDT_AUC_test_one.cc",
         "FBDT_AUC_test_one_ALP.cc",
@@ -264,6 +276,7 @@
     {
       "method": "FastBDTTrain",
       "module": "bdt_train",
+      "gui_available": true,
       "files": [
         "FBDT_GridSearch_one.cc",
         "FBDT_GridSearch_one_ALP.cc",
@@ -274,6 +287,7 @@
     {
       "method": "FillCustomizedTH1D",
       "module": "histogram",
+      "gui_available": false,
       "files": [
         "CreateWorkSpace.cc",
         "CreateWorkSpace_ALP.cc",
@@ -287,6 +301,7 @@
     {
       "method": "FillDataSet",
       "module": "dataset",
+      "gui_available": false,
       "files": [
         "Plotter_mass_ALP.cc",
         "fit_M_deltaE.cc",
@@ -296,6 +311,7 @@
     {
       "method": "FillTH1D",
       "module": "histogram",
+      "gui_available": false,
       "files": [
         "KS_test_half.cc",
         "KS_test_half_one.cc",
@@ -316,6 +332,7 @@
     {
       "method": "FillTProfile",
       "module": "profile",
+      "gui_available": false,
       "files": [
         "fit_M_deltaE.cc",
         "fit_M_deltaE_ALP.cc"
@@ -324,6 +341,7 @@
     {
       "method": "GetAverage",
       "module": "variables",
+      "gui_available": true,
       "files": [
         "Analysis_main.cc",
         "Analysis_main_ALP.cc",
@@ -338,6 +356,7 @@
     {
       "method": "GetDiff",
       "module": "variables",
+      "gui_available": true,
       "files": [
         "Analysis_main.cc",
         "Analysis_main_ALP.cc",
@@ -352,6 +371,7 @@
     {
       "method": "GetStdDev",
       "module": "variables",
+      "gui_available": true,
       "files": [
         "Analysis_main.cc",
         "Analysis_main_ALP.cc",
@@ -366,6 +386,7 @@
     {
       "method": "IsBCSValid",
       "module": "candidate_selection",
+      "gui_available": true,
       "files": [
         "Analysis_main_CTRL.cc",
         "Analysis_main_CTRL_log.cc",
@@ -392,6 +413,7 @@
     {
       "method": "Load",
       "module": "samples",
+      "gui_available": true,
       "files": [
         "Analysis_main_second.cc",
         "Analysis_main_second_ALP.cc",
@@ -468,6 +490,7 @@
     {
       "method": "LoadWithCut",
       "module": "samples",
+      "gui_available": true,
       "files": [
         "Analysis_main.cc",
         "Analysis_main_ALP.cc",
@@ -488,6 +511,7 @@
     {
       "method": "PrintEvent",
       "module": "print_events",
+      "gui_available": true,
       "files": [
         "PrintEventInfo.cc"
       ]
@@ -495,6 +519,7 @@
     {
       "method": "PrintInformation",
       "module": "print_information",
+      "gui_available": true,
       "files": [
         "Analysis_main.cc",
         "Analysis_main_ALP.cc",
@@ -540,6 +565,7 @@
     {
       "method": "PrintRootFile",
       "module": "root_output",
+      "gui_available": true,
       "files": [
         "example_code.cc"
       ]
@@ -547,6 +573,7 @@
     {
       "method": "PrintSeparateRootFile",
       "module": "root_output",
+      "gui_available": true,
       "files": [
         "Analysis_main.cc",
         "Analysis_main_ALP.cc",
@@ -568,6 +595,7 @@
     {
       "method": "RandomBCS",
       "module": "candidate_selection",
+      "gui_available": true,
       "files": [
         "Analysis_main_CTRL.cc",
         "Analysis_main_CTRL_log.cc",
@@ -593,6 +621,7 @@
     {
       "method": "RandomEventSelection",
       "module": "event_split",
+      "gui_available": true,
       "files": [
         "FBDT_train_test_split.cc",
         "File_Splitter.cc"
@@ -601,6 +630,7 @@
     {
       "method": "RemoveVariable",
       "module": "remove_variables",
+      "gui_available": true,
       "files": [
         "Analysis_main_CTRL.cc",
         "Analysis_main_CTRL2.cc",
@@ -611,6 +641,7 @@
     {
       "method": "SetBackground",
       "module": "sample_roles",
+      "gui_available": true,
       "files": [
         "FBDT_AUC_test_one.cc",
         "FBDT_AUC_test_one_ALP.cc",
@@ -648,6 +679,7 @@
     {
       "method": "SetData",
       "module": "sample_roles",
+      "gui_available": true,
       "files": [
         "FBDT_AUC_test_one.cc",
         "FBDT_AUC_test_one_ALP.cc",
@@ -689,6 +721,7 @@
     {
       "method": "SetMC",
       "module": "sample_roles",
+      "gui_available": true,
       "files": [
         "FBDT_AUC_test_one.cc",
         "FBDT_AUC_test_one_ALP.cc",
@@ -730,6 +763,7 @@
     {
       "method": "SetSignal",
       "module": "sample_roles",
+      "gui_available": true,
       "files": [
         "FBDT_AUC_test_one.cc",
         "FBDT_AUC_test_one_ALP.cc",
@@ -767,6 +801,7 @@
     {
       "method": "end",
       "module": "loader_end",
+      "gui_available": true,
       "files": [
         "Analysis_main.cc",
         "Analysis_main_ALP.cc",

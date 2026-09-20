@@ -6,13 +6,13 @@
     "scope": "workflow",
     "nodes": [
       {
-        "id": "node_5c593317e3ab",
+        "id": "node_10816f38cdf9",
         "type": "loader_execute",
         "title": "selection_modules",
         "x": 0,
         "y": 80,
         "properties": {
-          "loader_program": "loader_program_f4c2a9a7054d",
+          "loader_program": "loader_program_9ff267da6e4a",
           "argv": "",
           "mkdir_p": "",
           "log_err_prefix": "",
@@ -21,13 +21,13 @@
         }
       },
       {
-        "id": "node_df67f15455c7",
+        "id": "node_b8a8eb4c8294",
         "type": "loader_execute",
         "title": "train_bdt",
         "x": 300,
         "y": 80,
         "properties": {
-          "loader_program": "loader_program_0966d7372bb2",
+          "loader_program": "loader_program_8d93ce9b3056",
           "argv": "",
           "mkdir_p": "",
           "log_err_prefix": "",
@@ -36,13 +36,13 @@
         }
       },
       {
-        "id": "node_a6ca78bfc29f",
+        "id": "node_3a71d27b8ef5",
         "type": "loader_execute",
         "title": "evaluate_bdt",
         "x": 600,
         "y": 80,
         "properties": {
-          "loader_program": "loader_program_da5c303cb682",
+          "loader_program": "loader_program_7b500f433776",
           "argv": "",
           "mkdir_p": "",
           "log_err_prefix": "",
@@ -53,27 +53,27 @@
     ],
     "edges": [
       {
-        "id": "edge_23e1351de64f",
-        "source": "node_df67f15455c7",
+        "id": "edge_772c7fac3790",
+        "source": "node_b8a8eb4c8294",
         "source_port": "out",
-        "target": "node_a6ca78bfc29f",
+        "target": "node_3a71d27b8ef5",
         "target_port": "in"
       }
     ],
     "root_order": [
-      "node_5c593317e3ab",
-      "node_df67f15455c7"
+      "node_10816f38cdf9",
+      "node_b8a8eb4c8294"
     ],
     "foreach_regions": []
   },
   "loader_programs": {
-    "loader_program_f4c2a9a7054d": {
-      "id": "loader_program_f4c2a9a7054d",
+    "loader_program_9ff267da6e4a": {
+      "id": "loader_program_9ff267da6e4a",
       "name": "selection_modules",
       "scope": "loader",
       "nodes": [
         {
-          "id": "node_9173d902b339",
+          "id": "node_0f16b48d390b",
           "type": "loader_decl",
           "title": "Loader Declaration",
           "x": 0,
@@ -84,7 +84,7 @@
           }
         },
         {
-          "id": "node_dd1ced7f9951",
+          "id": "node_5121b91dd144",
           "type": "samples",
           "title": "Samples",
           "x": 280,
@@ -111,7 +111,7 @@
           }
         },
         {
-          "id": "node_2233ee415e9d",
+          "id": "node_d7fc947c71ad",
           "type": "sample_roles",
           "title": "Sample Roles",
           "x": 560,
@@ -124,23 +124,10 @@
           }
         },
         {
-          "id": "node_c4c82b614bbc",
-          "type": "event_weight",
-          "title": "Event Weight",
-          "x": 840,
-          "y": 0,
-          "properties": {
-            "weight": "demo",
-            "weight_object": "demo_weight",
-            "header": "support/demo.h",
-            "mapping": []
-          }
-        },
-        {
-          "id": "node_85ab219b3a3e",
+          "id": "node_9bd82b130ff7",
           "type": "ranked_variables",
           "title": "Ranked Variables",
-          "x": 1120,
+          "x": 840,
           "y": 0,
           "properties": {
             "pairs": [
@@ -177,11 +164,11 @@
           }
         },
         {
-          "id": "node_501e5f1f978e",
+          "id": "node_9b6b2381a00e",
           "type": "variables",
           "title": "Variables",
-          "x": 0,
-          "y": 180,
+          "x": 1120,
+          "y": 0,
           "properties": {
             "variables": [
               {
@@ -209,10 +196,10 @@
           }
         },
         {
-          "id": "node_41e824a549df",
+          "id": "node_040cca2f6457",
           "type": "cut_flow",
           "title": "Cut Flow",
-          "x": 280,
+          "x": 0,
           "y": 180,
           "properties": {
             "steps": [
@@ -248,10 +235,10 @@
           }
         },
         {
-          "id": "node_3fa07e9179d8",
+          "id": "node_3887d532998e",
           "type": "candidate_selection",
           "title": "Candidate Selection",
-          "x": 560,
+          "x": 280,
           "y": 180,
           "properties": {
             "mode": "random",
@@ -261,10 +248,10 @@
           }
         },
         {
-          "id": "node_7a55e1016597",
+          "id": "node_288574c79c4a",
           "type": "candidate_selection",
           "title": "Candidate Selection",
-          "x": 840,
+          "x": 560,
           "y": 180,
           "properties": {
             "mode": "validate",
@@ -274,10 +261,10 @@
           }
         },
         {
-          "id": "node_3c062556bac1",
+          "id": "node_393f6b707b56",
           "type": "stack_plots",
           "title": "Stack Plot Set",
-          "x": 1120,
+          "x": 840,
           "y": 180,
           "properties": {
             "plots": [
@@ -298,11 +285,11 @@
           }
         },
         {
-          "id": "node_73464d26d829",
+          "id": "node_1c070b4b132f",
           "type": "plots_2d",
           "title": "2D Plot Set",
-          "x": 0,
-          "y": 360,
+          "x": 1120,
+          "y": 180,
           "properties": {
             "plots": [
               {
@@ -325,72 +312,10 @@
           }
         },
         {
-          "id": "node_fbe9b3991633",
-          "type": "histogram",
-          "title": "ROOT Histogram",
-          "x": 280,
-          "y": 360,
-          "properties": {
-            "name": "histogram",
-            "title": ";M;Events",
-            "bins": 50,
-            "minimum": -0.1,
-            "maximum": 0.1,
-            "expression": "M",
-            "callback": "mass_offset",
-            "header": "support/demo.h",
-            "expressions": "M",
-            "filename": "results/histogram.root"
-          }
-        },
-        {
-          "id": "node_bf938358934b",
-          "type": "dataset",
-          "title": "RooDataSet Output",
-          "x": 560,
-          "y": 360,
-          "properties": {
-            "name": "dataset",
-            "observables": [
-              {
-                "name": "M",
-                "expression": "M",
-                "minimum": 1.71,
-                "maximum": 1.82
-              },
-              {
-                "name": "deltaE",
-                "expression": "deltaE",
-                "minimum": -0.3,
-                "maximum": 0.15
-              }
-            ],
-            "filename": "results/dataset.root"
-          }
-        },
-        {
-          "id": "node_9e195c419fab",
-          "type": "profile",
-          "title": "ROOT Profile",
-          "x": 840,
-          "y": 360,
-          "properties": {
-            "name": "profile",
-            "x": "deltaE",
-            "y": "M",
-            "bins": 100,
-            "minimum": -0.3,
-            "maximum": 0.15,
-            "y_min": 1.71,
-            "y_max": 1.82,
-            "filename": "results/profile.root"
-          }
-        },
-        {
-          "id": "node_e4934143e2d7",
+          "id": "node_4b11e1cd3e85",
           "type": "profile_fit",
           "title": "Profile Fit",
-          "x": 1120,
+          "x": 0,
           "y": 360,
           "properties": {
             "x": "deltaE",
@@ -423,11 +348,11 @@
           }
         },
         {
-          "id": "node_64af29e4dfc9",
+          "id": "node_c5c64741dbb1",
           "type": "event_split",
           "title": "Event Split",
-          "x": 0,
-          "y": 540,
+          "x": 280,
+          "y": 360,
           "properties": {
             "parts": 2,
             "index": 0,
@@ -435,11 +360,11 @@
           }
         },
         {
-          "id": "node_7350f4559ead",
+          "id": "node_b08e49b21789",
           "type": "root_output",
           "title": "ROOT Output",
-          "x": 280,
-          "y": 540,
+          "x": 560,
+          "y": 360,
           "properties": {
             "mode": "separate",
             "directory": "selected/partition_0",
@@ -449,147 +374,119 @@
           }
         },
         {
-          "id": "node_255942a57681",
+          "id": "node_4d2c48198ab0",
           "type": "loader_end",
           "title": "End",
-          "x": 560,
-          "y": 540,
+          "x": 840,
+          "y": 360,
           "properties": {}
         }
       ],
       "edges": [
         {
-          "id": "edge_6f5c9caccf06",
-          "source": "node_9173d902b339",
+          "id": "edge_03b9c71f8985",
+          "source": "node_0f16b48d390b",
           "source_port": "out",
-          "target": "node_dd1ced7f9951",
+          "target": "node_5121b91dd144",
           "target_port": "in"
         },
         {
-          "id": "edge_40d8aef0c379",
-          "source": "node_dd1ced7f9951",
+          "id": "edge_73b9f78a2521",
+          "source": "node_5121b91dd144",
           "source_port": "out",
-          "target": "node_2233ee415e9d",
+          "target": "node_d7fc947c71ad",
           "target_port": "in"
         },
         {
-          "id": "edge_ff69b0b933fb",
-          "source": "node_2233ee415e9d",
+          "id": "edge_911c6527441a",
+          "source": "node_d7fc947c71ad",
           "source_port": "out",
-          "target": "node_c4c82b614bbc",
+          "target": "node_9bd82b130ff7",
           "target_port": "in"
         },
         {
-          "id": "edge_32be6c3e3be5",
-          "source": "node_c4c82b614bbc",
+          "id": "edge_8d814c527c54",
+          "source": "node_9bd82b130ff7",
           "source_port": "out",
-          "target": "node_85ab219b3a3e",
+          "target": "node_9b6b2381a00e",
           "target_port": "in"
         },
         {
-          "id": "edge_8ba226c8bd24",
-          "source": "node_85ab219b3a3e",
+          "id": "edge_673acebe72db",
+          "source": "node_9b6b2381a00e",
           "source_port": "out",
-          "target": "node_501e5f1f978e",
+          "target": "node_040cca2f6457",
           "target_port": "in"
         },
         {
-          "id": "edge_041b2dd5f128",
-          "source": "node_501e5f1f978e",
+          "id": "edge_a968f8fd8814",
+          "source": "node_040cca2f6457",
           "source_port": "out",
-          "target": "node_41e824a549df",
+          "target": "node_3887d532998e",
           "target_port": "in"
         },
         {
-          "id": "edge_75a77fe60db4",
-          "source": "node_41e824a549df",
+          "id": "edge_8f95d75a1019",
+          "source": "node_3887d532998e",
           "source_port": "out",
-          "target": "node_3fa07e9179d8",
+          "target": "node_288574c79c4a",
           "target_port": "in"
         },
         {
-          "id": "edge_ae84db5267c3",
-          "source": "node_3fa07e9179d8",
+          "id": "edge_b3362f661ac7",
+          "source": "node_288574c79c4a",
           "source_port": "out",
-          "target": "node_7a55e1016597",
+          "target": "node_393f6b707b56",
           "target_port": "in"
         },
         {
-          "id": "edge_ca8402cbe7ad",
-          "source": "node_7a55e1016597",
+          "id": "edge_8858d58aba47",
+          "source": "node_393f6b707b56",
           "source_port": "out",
-          "target": "node_3c062556bac1",
+          "target": "node_1c070b4b132f",
           "target_port": "in"
         },
         {
-          "id": "edge_bc00f7805cdc",
-          "source": "node_3c062556bac1",
+          "id": "edge_c0037298a025",
+          "source": "node_1c070b4b132f",
           "source_port": "out",
-          "target": "node_73464d26d829",
+          "target": "node_4b11e1cd3e85",
           "target_port": "in"
         },
         {
-          "id": "edge_feb23866bdc5",
-          "source": "node_73464d26d829",
+          "id": "edge_7ba737c6aeda",
+          "source": "node_4b11e1cd3e85",
           "source_port": "out",
-          "target": "node_fbe9b3991633",
+          "target": "node_c5c64741dbb1",
           "target_port": "in"
         },
         {
-          "id": "edge_ed3ea29de062",
-          "source": "node_fbe9b3991633",
+          "id": "edge_7cde742ab91b",
+          "source": "node_c5c64741dbb1",
           "source_port": "out",
-          "target": "node_bf938358934b",
+          "target": "node_b08e49b21789",
           "target_port": "in"
         },
         {
-          "id": "edge_89bdd8c3d037",
-          "source": "node_bf938358934b",
+          "id": "edge_b259887a3a85",
+          "source": "node_b08e49b21789",
           "source_port": "out",
-          "target": "node_9e195c419fab",
-          "target_port": "in"
-        },
-        {
-          "id": "edge_b2a24b4399a4",
-          "source": "node_9e195c419fab",
-          "source_port": "out",
-          "target": "node_e4934143e2d7",
-          "target_port": "in"
-        },
-        {
-          "id": "edge_0c4cec5c9c3b",
-          "source": "node_e4934143e2d7",
-          "source_port": "out",
-          "target": "node_64af29e4dfc9",
-          "target_port": "in"
-        },
-        {
-          "id": "edge_4bf7b8ca2054",
-          "source": "node_64af29e4dfc9",
-          "source_port": "out",
-          "target": "node_7350f4559ead",
-          "target_port": "in"
-        },
-        {
-          "id": "edge_241681e67322",
-          "source": "node_7350f4559ead",
-          "source_port": "out",
-          "target": "node_255942a57681",
+          "target": "node_4d2c48198ab0",
           "target_port": "in"
         }
       ],
       "root_order": [
-        "node_9173d902b339"
+        "node_0f16b48d390b"
       ],
       "foreach_regions": []
     },
-    "loader_program_0966d7372bb2": {
-      "id": "loader_program_0966d7372bb2",
+    "loader_program_8d93ce9b3056": {
+      "id": "loader_program_8d93ce9b3056",
       "name": "train_bdt",
       "scope": "loader",
       "nodes": [
         {
-          "id": "node_5a2bf6c848c8",
+          "id": "node_330d9f4804bc",
           "type": "loader_decl",
           "title": "Loader Declaration",
           "x": 0,
@@ -600,7 +497,7 @@
           }
         },
         {
-          "id": "node_c634eb570669",
+          "id": "node_f615f3e40ab9",
           "type": "samples",
           "title": "Samples",
           "x": 280,
@@ -627,7 +524,7 @@
           }
         },
         {
-          "id": "node_5fba0d3aa69d",
+          "id": "node_39c8589cf7f2",
           "type": "sample_roles",
           "title": "Sample Roles",
           "x": 560,
@@ -640,23 +537,10 @@
           }
         },
         {
-          "id": "node_3cd332a19498",
-          "type": "event_weight",
-          "title": "Event Weight",
-          "x": 840,
-          "y": 0,
-          "properties": {
-            "weight": "demo",
-            "weight_object": "demo_weight",
-            "header": "support/demo.h",
-            "mapping": []
-          }
-        },
-        {
-          "id": "node_aeaf8cfb1171",
+          "id": "node_e92666b7ea8f",
           "type": "bdt_train",
           "title": "Train FastBDT",
-          "x": 1120,
+          "x": 840,
           "y": 0,
           "properties": {
             "variables": "M\ndeltaE",
@@ -690,63 +574,56 @@
           }
         },
         {
-          "id": "node_c8c206821059",
+          "id": "node_d1a46d29add3",
           "type": "loader_end",
           "title": "End",
-          "x": 0,
-          "y": 180,
+          "x": 1120,
+          "y": 0,
           "properties": {}
         }
       ],
       "edges": [
         {
-          "id": "edge_f42c88e27f41",
-          "source": "node_5a2bf6c848c8",
+          "id": "edge_66fda7942238",
+          "source": "node_330d9f4804bc",
           "source_port": "out",
-          "target": "node_c634eb570669",
+          "target": "node_f615f3e40ab9",
           "target_port": "in"
         },
         {
-          "id": "edge_35fd2f464843",
-          "source": "node_c634eb570669",
+          "id": "edge_fb1aa4e37729",
+          "source": "node_f615f3e40ab9",
           "source_port": "out",
-          "target": "node_5fba0d3aa69d",
+          "target": "node_39c8589cf7f2",
           "target_port": "in"
         },
         {
-          "id": "edge_ed5eb023e343",
-          "source": "node_5fba0d3aa69d",
+          "id": "edge_c2e7fb0323c2",
+          "source": "node_39c8589cf7f2",
           "source_port": "out",
-          "target": "node_3cd332a19498",
+          "target": "node_e92666b7ea8f",
           "target_port": "in"
         },
         {
-          "id": "edge_e4f16164c15a",
-          "source": "node_3cd332a19498",
+          "id": "edge_a5839eebb5db",
+          "source": "node_e92666b7ea8f",
           "source_port": "out",
-          "target": "node_aeaf8cfb1171",
-          "target_port": "in"
-        },
-        {
-          "id": "edge_5ab2c4f85c89",
-          "source": "node_aeaf8cfb1171",
-          "source_port": "out",
-          "target": "node_c8c206821059",
+          "target": "node_d1a46d29add3",
           "target_port": "in"
         }
       ],
       "root_order": [
-        "node_5a2bf6c848c8"
+        "node_330d9f4804bc"
       ],
       "foreach_regions": []
     },
-    "loader_program_da5c303cb682": {
-      "id": "loader_program_da5c303cb682",
+    "loader_program_7b500f433776": {
+      "id": "loader_program_7b500f433776",
       "name": "evaluate_bdt",
       "scope": "loader",
       "nodes": [
         {
-          "id": "node_0b86ffeb8d4e",
+          "id": "node_a707fe4dd056",
           "type": "loader_decl",
           "title": "Loader Declaration",
           "x": 0,
@@ -757,7 +634,7 @@
           }
         },
         {
-          "id": "node_8f3dc3830f67",
+          "id": "node_a717e39159b0",
           "type": "samples",
           "title": "Samples",
           "x": 280,
@@ -784,7 +661,7 @@
           }
         },
         {
-          "id": "node_743b97c1fc41",
+          "id": "node_317ebef419c3",
           "type": "sample_roles",
           "title": "Sample Roles",
           "x": 560,
@@ -797,23 +674,10 @@
           }
         },
         {
-          "id": "node_a8174afb1e4c",
-          "type": "event_weight",
-          "title": "Event Weight",
-          "x": 840,
-          "y": 0,
-          "properties": {
-            "weight": "demo",
-            "weight_object": "demo_weight",
-            "header": "support/demo.h",
-            "mapping": []
-          }
-        },
-        {
-          "id": "node_73239e84ef58",
+          "id": "node_6d0cf5cc9460",
           "type": "bdt_apply",
           "title": "Apply FastBDT",
-          "x": 1120,
+          "x": 840,
           "y": 0,
           "properties": {
             "variables": "M\ndeltaE",
@@ -822,11 +686,11 @@
           }
         },
         {
-          "id": "node_d001064e61d4",
+          "id": "node_c3be8e3fbef3",
           "type": "bdt_evaluate",
-          "title": "BDT Performance",
-          "x": 0,
-          "y": 180,
+          "title": "Variable Optimization",
+          "x": 1120,
+          "y": 0,
           "properties": {
             "metric": "AUC",
             "expression": "BDT_output",
@@ -836,15 +700,16 @@
             "rank": 1,
             "initial_signal": 1000.0,
             "alpha": 1.28,
-            "filename": "results/test_auc.txt",
+            "output_directory": "results",
+            "output_name": "test_auc",
             "write_mode": "w"
           }
         },
         {
-          "id": "node_1e0d694ecbd7",
+          "id": "node_17b36f2aae52",
           "type": "bdt_evaluate",
-          "title": "BDT Performance",
-          "x": 280,
+          "title": "Variable Optimization",
+          "x": 0,
           "y": 180,
           "properties": {
             "metric": "Punzi",
@@ -855,72 +720,66 @@
             "rank": 1,
             "initial_signal": 1000.0,
             "alpha": 1.28,
-            "filename": "plots/test_punzi.png",
+            "output_directory": "plots",
+            "output_name": "test_punzi",
             "write_mode": "w"
           }
         },
         {
-          "id": "node_4271a9127f92",
+          "id": "node_da03bcb9fc22",
           "type": "loader_end",
           "title": "End",
-          "x": 560,
+          "x": 280,
           "y": 180,
           "properties": {}
         }
       ],
       "edges": [
         {
-          "id": "edge_f941ef63ce6c",
-          "source": "node_0b86ffeb8d4e",
+          "id": "edge_c3662a10493e",
+          "source": "node_a707fe4dd056",
           "source_port": "out",
-          "target": "node_8f3dc3830f67",
+          "target": "node_a717e39159b0",
           "target_port": "in"
         },
         {
-          "id": "edge_730321978a01",
-          "source": "node_8f3dc3830f67",
+          "id": "edge_ce565b43365b",
+          "source": "node_a717e39159b0",
           "source_port": "out",
-          "target": "node_743b97c1fc41",
+          "target": "node_317ebef419c3",
           "target_port": "in"
         },
         {
-          "id": "edge_32521b2b06da",
-          "source": "node_743b97c1fc41",
+          "id": "edge_bdfb2716a9e0",
+          "source": "node_317ebef419c3",
           "source_port": "out",
-          "target": "node_a8174afb1e4c",
+          "target": "node_6d0cf5cc9460",
           "target_port": "in"
         },
         {
-          "id": "edge_50ee42f9b65c",
-          "source": "node_a8174afb1e4c",
+          "id": "edge_982880d980dc",
+          "source": "node_6d0cf5cc9460",
           "source_port": "out",
-          "target": "node_73239e84ef58",
+          "target": "node_c3be8e3fbef3",
           "target_port": "in"
         },
         {
-          "id": "edge_0decb39d7dfe",
-          "source": "node_73239e84ef58",
+          "id": "edge_34742bce545d",
+          "source": "node_c3be8e3fbef3",
           "source_port": "out",
-          "target": "node_d001064e61d4",
+          "target": "node_17b36f2aae52",
           "target_port": "in"
         },
         {
-          "id": "edge_068d7d7ff56f",
-          "source": "node_d001064e61d4",
+          "id": "edge_287e777cc78d",
+          "source": "node_17b36f2aae52",
           "source_port": "out",
-          "target": "node_1e0d694ecbd7",
-          "target_port": "in"
-        },
-        {
-          "id": "edge_6d840161f0e1",
-          "source": "node_1e0d694ecbd7",
-          "source_port": "out",
-          "target": "node_4271a9127f92",
+          "target": "node_da03bcb9fc22",
           "target_port": "in"
         }
       ],
       "root_order": [
-        "node_0b86ffeb8d4e"
+        "node_a707fe4dd056"
       ],
       "foreach_regions": []
     }

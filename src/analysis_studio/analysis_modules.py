@@ -3,6 +3,7 @@
 Keep these schemas independent of Qt, so CLI generation uses the same contract.
 """
 from .model import NodeSpec, PropertySpec as P
+from pathlib import PurePosixPath
 from .recipes import PLOT_COLUMNS, PARAMETER_COLUMNS, row_defaults
 
 
@@ -41,15 +42,42 @@ OBSERVABLE_COLUMNS = (
     P("name", "Observable", default="M"), P("expression", "Expression", default="M"),
     P("minimum", "Min", "float", 1.5), P("maximum", "Max", "float", 1.9),
 )
-HYPER_COLUMNS = (P("name", "Hyperparameter", default="NTrees"), P("value", "Value", "float", 100))
+HYPERPARAMETERS = ("NTrees", "Depth", "Shrinkage", "Subsample", "Binning")
+HYPER_COLUMNS = (P("name", "Hyperparameter", "choice", "NTrees", HYPERPARAMETERS),
+                 P("value", "Value", "float", 100))
+
+# Preserve legacy files/code generation without offering external C++ wiring in the GUI.
+EXTERNAL_OBJECT_BLOCKS = frozenset({"histogram", "dataset", "profile", "event_weight", "cpp_support"})
+CATEGORY_COLORS = {
+    "Input": "#4263a8", "Samples & weights": "#4263a8", "Selection": "#a06c2b",
+    "Transform": "#3d8060", "Plot": "#9a4d64", "Output": "#9a4d64",
+    "BDT": "#814f87", "Fit": "#7651a8", "Optimization": "#a06c2b", "Advanced": "#814f87",
+}
+
+
+def optimization_output_path(properties):
+    suffix = ".txt" if properties.get("metric") == "AUC" else ".png"
+    if "filename" in properties:  # Legacy direct callers; saved projects migrate on load.
+        return str(PurePosixPath(str(properties["filename"]).replace("\\", "/")).with_suffix(suffix))
+    name = str(properties.get("output_name", "optimization")).strip()
+    if name.lower().endswith((".png", ".txt")):
+        name = name[:-4]
+    return str(PurePosixPath(str(properties.get("output_directory", "results")).replace("\\", "/")) / (name + suffix))
+
+
+def migrate_optimization_properties(properties):
+    if "filename" in properties:
+        path = PurePosixPath(str(properties.pop("filename")).replace("\\", "/"))
+        properties.setdefault("output_directory", str(path.parent))
+        properties.setdefault("output_name", path.stem)
 
 
 def module_specs():
     def spec(key, label, category, *properties):
-        return NodeSpec(key, label, category, "loader", "#537e9b", properties=properties)
+        return NodeSpec(key, label, category, "loader", CATEGORY_COLORS[category], properties=properties)
 
     return [
-        spec("sample_roles", "Sample Roles", "Samples & weights",
+        spec("sample_roles", "Sample Roles", "Input",
              strings("mc", "MC labels", "SIGNAL\nBACKGROUND"), strings("data", "Data labels"),
              strings("signal", "Signal labels", "SIGNAL"), strings("background", "Background labels", "BACKGROUND")),
         spec("event_weight", "Event Weight", "Samples & weights",
@@ -97,14 +125,17 @@ def module_specs():
              strings("variables", "Inputs (training order)", "M\ndeltaE"),
              P("classifier", "Classifier file", "path", "models/classifier.weightfile"),
              P("branch", "Output variable", default="BDT_output")),
-        spec("bdt_evaluate", "BDT Performance", "BDT",
+        spec("bdt_evaluate", "Variable Optimization", "Optimization",
              P("metric", "Metric", "choice", "Punzi", ("Punzi", "FOM", "AUC")),
-             P("expression", "Classifier expression", default="BDT_output"),
+             P("expression", "Variable / expression", default="thrust",
+               help="Scan any analysis variable or expression. Set signal/background labels with Sample Roles; a BDT output is optional."),
              P("minimum", "Scan min", "float", 0.0), P("maximum", "Scan max", "float", 1.0),
              P("bins", "Scan bins", "int", 100), P("rank", "Cut rank", "int", 1),
              P("initial_signal", "Initial signal yield", "float", 1000.0), P("alpha", "Punzi alpha", "float", 1.28),
-             P("filename", "Output (PNG or AUC text)", "path", "results/Punzi.png"),
-             P("write_mode", "AUC write mode", "choice", "w", ("w", "a"))),
+             P("output_directory", "Output folder", "path", "results"),
+             P("output_name", "File name (extension automatic)", default="optimization"),
+             P("write_mode", "AUC write mode", "choice", "w", ("w", "a"),
+               help="w: replace the text file. a: append the AUC result to the existing text file.")),
         spec("histogram", "ROOT Histogram", "Output",
              P("name", "ROOT object name", default="histogram"), P("title", "Title", default=";M;Events"),
              P("bins", "Bins", "int", 50), P("minimum", "Min", "float", 1.5), P("maximum", "Max", "float", 1.9),

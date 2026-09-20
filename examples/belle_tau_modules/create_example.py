@@ -27,12 +27,10 @@ def make_project():
     def samples(part):
         return [dict(enabled=True, directory=f"Ntuple/{label}/{part}", argument=0, including=".root", label=label, condition="") for label in ("SIGNAL", "BACKGROUND")]
 
-    event_weight = dict(weight="demo", weight_object="demo_weight", header="support/demo.h", mapping=[])
     input_names = [f"extraInfo__bo{index}Muon_cosToThrustOfEvent__bc" for index in ("One", "Two", "Three")]
     preselection = program("selection_modules", [
         ("samples", {"samples": samples("input")}),
         ("sample_roles", {}),
-        ("event_weight", event_weight),
         ("ranked_variables", {"pairs": [dict(rank_expression=f"extraInfo__bo{index}Muon_p__bc", value_expression=f"extraInfo__bo{index}Muon_muonID__bc") for index in ("One", "Two", "Three")],
                               "outputs": [dict(enabled=True, name=f"{name}_muon_muonID", rank=i) for i, name in enumerate(("first", "second", "third"))]}),
         ("variables", {"variables": [dict(enabled=True, name=name, operation=op, expressions=";".join(input_names), order=0) for name, op in (("avg_cosToThrust", "GetAverage"), ("stddev_cosToThrust", "GetStdDev"), ("diff_cosToThrust", "GetDiff"))]}),
@@ -41,22 +39,19 @@ def make_project():
         ("candidate_selection", {"mode": "validate"}),
         ("stack_plots", {}),
         ("plots_2d", {}),
-        ("histogram", {"callback": "mass_offset", "header": "support/demo.h", "expressions": "M", "minimum": -0.1, "maximum": 0.1}),
-        ("dataset", {"observables": [dict(name="M", expression="M", minimum=1.71, maximum=1.82), dict(name="deltaE", expression="deltaE", minimum=-0.3, maximum=0.15)]}),
-        ("profile", {}),
         ("profile_fit", {}),
         ("event_split", {"parts": 2, "index": 0}),
         ("root_output", {"directory": "selected/partition_0"}),
     ])
     training = program("train_bdt", [
         ("samples", {"samples": samples("train")}), ("sample_roles", {}),
-        ("event_weight", event_weight), ("bdt_train", {"name": "tau.weightfile"}),
+        ("bdt_train", {"name": "tau.weightfile"}),
     ])
     evaluation = program("evaluate_bdt", [
         ("samples", {"samples": samples("test")}), ("sample_roles", {}),
-        ("event_weight", event_weight), ("bdt_apply", {"classifier": "models/tau.weightfile"}),
-        ("bdt_evaluate", {"metric": "AUC", "filename": "results/test_auc.txt"}),
-        ("bdt_evaluate", {"metric": "Punzi", "filename": "plots/test_punzi.png"}),
+        ("bdt_apply", {"classifier": "models/tau.weightfile"}),
+        ("bdt_evaluate", {"metric": "AUC", "expression": "BDT_output", "output_name": "test_auc"}),
+        ("bdt_evaluate", {"metric": "Punzi", "expression": "BDT_output", "output_directory": "plots", "output_name": "test_punzi"}),
     ])
     runs = []
     for index, graph in enumerate((preselection, training, evaluation)):

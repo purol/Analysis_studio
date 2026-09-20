@@ -42,9 +42,10 @@ C++ variable name. Task blocks live in Input, Selection, Transform, Plot, BDT,
 Fit and Output; individual low-level calls are grouped under Advanced.
 
 The [Belle_tau module guide](docs/belle_tau_modules.md) documents sample roles,
-weights, ranked variables, candidate selection, FastBDT, histogram/dataset/profile
-outputs and C++ support files. The audited 35 direct Loader methods all have GUI
-adapters; this does not imply full migration of ROOT/RooStats algorithms.
+ranked variables, candidate selection, FastBDT and general variable optimization.
+FOM/Punzi outputs are PNG plots; AUC outputs are numerical text files. Extensions
+are selected automatically. External-object blocks are excluded from the GUI;
+their legacy schemas remain available for reading older projects.
 
 Open `examples/analysis_tasks/tau_selection.astudio.json` for a working editor
 example inspired by Belle_tau. See [the task editor guide](docs/analysis_tasks.md)

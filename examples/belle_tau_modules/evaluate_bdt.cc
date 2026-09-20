@@ -8,7 +8,7 @@
 
 #include "TFile.h"
 #include "Loader.h"
-#include "support/demo.h"
+
 
 
 int main(int argc, char* argv[]) {
@@ -26,18 +26,14 @@ int main(int argc, char* argv[]) {
     loader.SetSignal({"SIGNAL"});
     loader.SetBackground({"BACKGROUND"});
 
-    // Event Weight
-    EventWeights::Register("demo", demo_weight);
-    loader.AddWeight("demo", {});
-
     // Apply FastBDT
     loader.FastBDTApplication({"M", "deltaE"}, "models/tau.weightfile", "BDT_output");
 
-    // BDT Performance
+    // Variable Optimization
     if (!std::filesystem::path("results/test_auc.txt").parent_path().empty()) std::filesystem::create_directories(std::filesystem::path("results/test_auc.txt").parent_path());
     loader.CalculateAUC("BDT_output", 0.0, 1.0, "results/test_auc.txt", "w");
 
-    // BDT Performance
+    // Variable Optimization
     if (!std::filesystem::path("plots/test_punzi.png").parent_path().empty()) std::filesystem::create_directories(std::filesystem::path("plots/test_punzi.png").parent_path());
     loader.DrawPunziFOM("BDT_output", 0.0, 1.0, 100, 1000.0, 1.28, 1, "plots/test_punzi.png");
 

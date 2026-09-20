@@ -30,6 +30,7 @@ from .foreach_tokens import source_fields, token_bindings, token_definitions
 from .graphics import GraphScene
 from .table_editor import RecipeTableEditor
 from .recipes import parameter_preset
+from .analysis_modules import EXTERNAL_OBJECT_BLOCKS, optimization_output_path
 from .model import (
     ForEachRegion,
     Project,
@@ -358,6 +359,24 @@ class PropertyEditor(QScrollArea):
 
         heading = QLabel(f"<b>{spec.label}</b>")
         self._layout.addWidget(heading)
+        if self.node.type in EXTERNAL_OBJECT_BLOCKS:
+            self._layout.addWidget(self._help_label(
+                "This legacy block depends on external C++ objects or definitions and is no longer offered in the GUI. "
+                "Its saved settings are retained for compatibility. Remove it from this program to use only Loader-managed tasks."
+            ))
+            self._layout.addStretch(1)
+            return
+        if self.node.type == "bdt_evaluate":
+            message = (
+                "AUC writes the numerical AUC result to a text file (.txt). It does not generate a plot."
+                if self.node.properties.get("metric") == "AUC" else
+                "FOM and Punzi write an optimization plot as a PNG image (.png)."
+            )
+            self._layout.addWidget(self._help_label(message + " Enter a folder and file name; the extension is added automatically."))
+            output = QLabel("Output file: " + optimization_output_path(self.node.properties))
+            output.setTextFormat(Qt.TextFormat.PlainText)
+            output.setWordWrap(True)
+            self._layout.addWidget(output)
         if scene.graph.scope == "workflow":
             containing_regions = self._regions_for_node(scene, node_id)
             if containing_regions:
@@ -593,6 +612,8 @@ class PropertyEditor(QScrollArea):
         self.property_changed.emit()
         refresh_panel = name in {"loader_program", "build_mode", "plot_timing", "use_fit_range", "mode", "metric"} or (
             self.node.type == "custom_command" and name == "code"
+        ) or (
+            self.node.type == "bdt_evaluate" and name in {"output_name", "output_directory"}
         )
         if refresh_panel:
             scene = self.scene

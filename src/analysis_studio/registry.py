@@ -3,7 +3,7 @@ from dataclasses import replace
 
 from .model import NodeSpec, PropertySpec
 from .recipes import recipe_specs
-from .analysis_modules import MODULE_SPECS
+from .analysis_modules import MODULE_SPECS, EXTERNAL_OBJECT_BLOCKS
 
 
 P = PropertySpec
@@ -392,8 +392,8 @@ NODE_SPECS = {
 
 
 def specs_for_scope(scope: str) -> list[NodeSpec]:
-    categories = ("Loader", "Input", "Samples & weights", "Selection", "Transform", "Plot", "BDT", "Fit", "Output", "Advanced")
+    categories = ("Loader", "Input", "Samples & weights", "Selection", "Transform", "Plot", "Optimization", "BDT", "Fit", "Output", "Advanced")
     if scope != "loader":
         return [spec for spec in NODE_SPECS.values() if spec.scope == scope]
-    return sorted((spec for spec in NODE_SPECS.values() if spec.scope == scope),
+    return sorted((spec for spec in NODE_SPECS.values() if spec.scope == scope and spec.key not in EXTERNAL_OBJECT_BLOCKS),
                   key=lambda spec: categories.index(spec.category))

@@ -1,7 +1,7 @@
 """Public Loader API adapters; ROOT object exports are deferred until end()."""
 from pathlib import PurePosixPath
 
-from .analysis_modules import active_rows, values
+from .analysis_modules import active_rows, values, optimization_output_path
 from .recipe_codegen import recipe_tag
 
 
@@ -97,15 +97,16 @@ def module_to_cpp(loader, node, after=False, register_weight=True):
     elif node.type == "bdt_apply":
         call("FastBDTApplication", vector(p["variables"]), q(p["classifier"]), q(p["branch"]))
     elif node.type == "bdt_evaluate":
-        mkdir(p["filename"])
+        filename = optimization_output_path(p)
+        mkdir(filename)
         args = [q(p["expression"]), number(p["minimum"]), number(p["maximum"])]
         if p["metric"] == "AUC":
-            call("CalculateAUC", *args, q(p["filename"]), q(p["write_mode"]))
+            call("CalculateAUC", *args, q(filename), q(p["write_mode"]))
         else:
             args.append(integer(p["bins"]))
             if p["metric"] == "Punzi":
                 args += [number(p["initial_signal"]), number(p["alpha"])]
-            call("DrawPunziFOM" if p["metric"] == "Punzi" else "DrawFOM", *args, integer(p["rank"]), q(p["filename"]))
+            call("DrawPunziFOM" if p["metric"] == "Punzi" else "DrawFOM", *args, integer(p["rank"]), q(filename))
     elif node.type == "histogram":
         lines.extend([f"TH1D {tag}({q(p['name'])}, {q(p['title'])}, {integer(p['bins'])}, {number(p['minimum'])}, {number(p['maximum'])});",
                       f"{tag}.SetDirectory(nullptr);", f"{tag}.Sumw2();"])

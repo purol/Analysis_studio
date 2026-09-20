@@ -77,7 +77,7 @@ def recipe_specs():
         NodeSpec("print_information", "Print Information", "Output", "loader", "#9a4d64", properties=(
             P("message", "Message", default="Selection summary"),
         )),
-        NodeSpec("fit", "Fit", "Fit", "loader", "#537e9b", properties=(
+        NodeSpec("fit", "Fit", "Fit", "loader", "#7651a8", properties=(
             P("expression", "Observable expression", default="M"),
             P("minimum", "Observable min", "float", 1.7),
             P("maximum", "Observable max", "float", 1.85),
