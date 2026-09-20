@@ -1,0 +1,946 @@
+{
+  "name": "Belle tau module examples",
+  "workflow": {
+    "id": "workflow",
+    "name": "Workflow",
+    "scope": "workflow",
+    "nodes": [
+      {
+        "id": "node_5c593317e3ab",
+        "type": "loader_execute",
+        "title": "selection_modules",
+        "x": 0,
+        "y": 80,
+        "properties": {
+          "loader_program": "loader_program_f4c2a9a7054d",
+          "argv": "",
+          "mkdir_p": "",
+          "log_err_prefix": "",
+          "log_err_suffix": "",
+          "lsf_queue": "s"
+        }
+      },
+      {
+        "id": "node_df67f15455c7",
+        "type": "loader_execute",
+        "title": "train_bdt",
+        "x": 300,
+        "y": 80,
+        "properties": {
+          "loader_program": "loader_program_0966d7372bb2",
+          "argv": "",
+          "mkdir_p": "",
+          "log_err_prefix": "",
+          "log_err_suffix": "",
+          "lsf_queue": "s"
+        }
+      },
+      {
+        "id": "node_a6ca78bfc29f",
+        "type": "loader_execute",
+        "title": "evaluate_bdt",
+        "x": 600,
+        "y": 80,
+        "properties": {
+          "loader_program": "loader_program_da5c303cb682",
+          "argv": "",
+          "mkdir_p": "",
+          "log_err_prefix": "",
+          "log_err_suffix": "",
+          "lsf_queue": "s"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "edge_23e1351de64f",
+        "source": "node_df67f15455c7",
+        "source_port": "out",
+        "target": "node_a6ca78bfc29f",
+        "target_port": "in"
+      }
+    ],
+    "root_order": [
+      "node_5c593317e3ab",
+      "node_df67f15455c7"
+    ],
+    "foreach_regions": []
+  },
+  "loader_programs": {
+    "loader_program_f4c2a9a7054d": {
+      "id": "loader_program_f4c2a9a7054d",
+      "name": "selection_modules",
+      "scope": "loader",
+      "nodes": [
+        {
+          "id": "node_9173d902b339",
+          "type": "loader_decl",
+          "title": "Loader Declaration",
+          "x": 0,
+          "y": 0,
+          "properties": {
+            "variable_name": "loader",
+            "branch": "tau_lfv"
+          }
+        },
+        {
+          "id": "node_dd1ced7f9951",
+          "type": "samples",
+          "title": "Samples",
+          "x": 280,
+          "y": 0,
+          "properties": {
+            "samples": [
+              {
+                "enabled": true,
+                "directory": "Ntuple/SIGNAL/input",
+                "argument": 0,
+                "including": ".root",
+                "label": "SIGNAL",
+                "condition": ""
+              },
+              {
+                "enabled": true,
+                "directory": "Ntuple/BACKGROUND/input",
+                "argument": 0,
+                "including": ".root",
+                "label": "BACKGROUND",
+                "condition": ""
+              }
+            ]
+          }
+        },
+        {
+          "id": "node_2233ee415e9d",
+          "type": "sample_roles",
+          "title": "Sample Roles",
+          "x": 560,
+          "y": 0,
+          "properties": {
+            "mc": "SIGNAL\nBACKGROUND",
+            "data": "",
+            "signal": "SIGNAL",
+            "background": "BACKGROUND"
+          }
+        },
+        {
+          "id": "node_c4c82b614bbc",
+          "type": "event_weight",
+          "title": "Event Weight",
+          "x": 840,
+          "y": 0,
+          "properties": {
+            "weight": "demo",
+            "weight_object": "demo_weight",
+            "header": "support/demo.h",
+            "mapping": []
+          }
+        },
+        {
+          "id": "node_85ab219b3a3e",
+          "type": "ranked_variables",
+          "title": "Ranked Variables",
+          "x": 1120,
+          "y": 0,
+          "properties": {
+            "pairs": [
+              {
+                "rank_expression": "extraInfo__boOneMuon_p__bc",
+                "value_expression": "extraInfo__boOneMuon_muonID__bc"
+              },
+              {
+                "rank_expression": "extraInfo__boTwoMuon_p__bc",
+                "value_expression": "extraInfo__boTwoMuon_muonID__bc"
+              },
+              {
+                "rank_expression": "extraInfo__boThreeMuon_p__bc",
+                "value_expression": "extraInfo__boThreeMuon_muonID__bc"
+              }
+            ],
+            "outputs": [
+              {
+                "enabled": true,
+                "name": "first_muon_muonID",
+                "rank": 0
+              },
+              {
+                "enabled": true,
+                "name": "second_muon_muonID",
+                "rank": 1
+              },
+              {
+                "enabled": true,
+                "name": "third_muon_muonID",
+                "rank": 2
+              }
+            ]
+          }
+        },
+        {
+          "id": "node_501e5f1f978e",
+          "type": "variables",
+          "title": "Variables",
+          "x": 0,
+          "y": 180,
+          "properties": {
+            "variables": [
+              {
+                "enabled": true,
+                "name": "avg_cosToThrust",
+                "operation": "GetAverage",
+                "expressions": "extraInfo__boOneMuon_cosToThrustOfEvent__bc;extraInfo__boTwoMuon_cosToThrustOfEvent__bc;extraInfo__boThreeMuon_cosToThrustOfEvent__bc",
+                "order": 0
+              },
+              {
+                "enabled": true,
+                "name": "stddev_cosToThrust",
+                "operation": "GetStdDev",
+                "expressions": "extraInfo__boOneMuon_cosToThrustOfEvent__bc;extraInfo__boTwoMuon_cosToThrustOfEvent__bc;extraInfo__boThreeMuon_cosToThrustOfEvent__bc",
+                "order": 0
+              },
+              {
+                "enabled": true,
+                "name": "diff_cosToThrust",
+                "operation": "GetDiff",
+                "expressions": "extraInfo__boOneMuon_cosToThrustOfEvent__bc;extraInfo__boTwoMuon_cosToThrustOfEvent__bc;extraInfo__boThreeMuon_cosToThrustOfEvent__bc",
+                "order": 0
+              }
+            ]
+          }
+        },
+        {
+          "id": "node_41e824a549df",
+          "type": "cut_flow",
+          "title": "Cut Flow",
+          "x": 280,
+          "y": 180,
+          "properties": {
+            "steps": [
+              {
+                "enabled": true,
+                "name": "Mass window",
+                "condition": "(1.71 < M) && (M < 1.82)",
+                "report": true
+              },
+              {
+                "enabled": true,
+                "name": "Energy window",
+                "condition": "(-0.3 < deltaE) && (deltaE < 0.15)",
+                "report": true
+              }
+            ],
+            "plot_timing": "none",
+            "plots": [
+              {
+                "enabled": true,
+                "expression": "M",
+                "title": ";M [GeV];Events",
+                "bins": 50,
+                "minimum": 1.5,
+                "maximum": 1.9,
+                "filename": "M.png"
+              }
+            ],
+            "output_directory": "plots",
+            "automatic_binning": false,
+            "normalized": false,
+            "log_scale": false
+          }
+        },
+        {
+          "id": "node_3fa07e9179d8",
+          "type": "candidate_selection",
+          "title": "Candidate Selection",
+          "x": 560,
+          "y": 180,
+          "properties": {
+            "mode": "random",
+            "expression": "chiProb",
+            "criteria": "highest",
+            "event_keys": "__experiment__\n__run__\n__event__\n__production__\n__ncandidates__"
+          }
+        },
+        {
+          "id": "node_7a55e1016597",
+          "type": "candidate_selection",
+          "title": "Candidate Selection",
+          "x": 840,
+          "y": 180,
+          "properties": {
+            "mode": "validate",
+            "expression": "chiProb",
+            "criteria": "highest",
+            "event_keys": "__experiment__\n__run__\n__event__\n__production__\n__ncandidates__"
+          }
+        },
+        {
+          "id": "node_3c062556bac1",
+          "type": "stack_plots",
+          "title": "Stack Plot Set",
+          "x": 1120,
+          "y": 180,
+          "properties": {
+            "plots": [
+              {
+                "enabled": true,
+                "expression": "M",
+                "title": ";M [GeV];Events",
+                "bins": 50,
+                "minimum": 1.5,
+                "maximum": 1.9,
+                "filename": "M.png"
+              }
+            ],
+            "output_directory": "plots",
+            "automatic_binning": false,
+            "normalized": false,
+            "log_scale": false
+          }
+        },
+        {
+          "id": "node_73464d26d829",
+          "type": "plots_2d",
+          "title": "2D Plot Set",
+          "x": 0,
+          "y": 360,
+          "properties": {
+            "plots": [
+              {
+                "enabled": true,
+                "x": "M",
+                "y": "deltaE",
+                "title": ";M [GeV];deltaE [GeV]",
+                "x_bins": 50,
+                "x_min": 1.5,
+                "x_max": 1.9,
+                "y_bins": 50,
+                "y_min": -0.3,
+                "y_max": 0.15,
+                "filename": "M_deltaE.png",
+                "option": "COLZ"
+              }
+            ],
+            "output_directory": "plots",
+            "automatic_binning": false
+          }
+        },
+        {
+          "id": "node_fbe9b3991633",
+          "type": "histogram",
+          "title": "ROOT Histogram",
+          "x": 280,
+          "y": 360,
+          "properties": {
+            "name": "histogram",
+            "title": ";M;Events",
+            "bins": 50,
+            "minimum": -0.1,
+            "maximum": 0.1,
+            "expression": "M",
+            "callback": "mass_offset",
+            "header": "support/demo.h",
+            "expressions": "M",
+            "filename": "results/histogram.root"
+          }
+        },
+        {
+          "id": "node_bf938358934b",
+          "type": "dataset",
+          "title": "RooDataSet Output",
+          "x": 560,
+          "y": 360,
+          "properties": {
+            "name": "dataset",
+            "observables": [
+              {
+                "name": "M",
+                "expression": "M",
+                "minimum": 1.71,
+                "maximum": 1.82
+              },
+              {
+                "name": "deltaE",
+                "expression": "deltaE",
+                "minimum": -0.3,
+                "maximum": 0.15
+              }
+            ],
+            "filename": "results/dataset.root"
+          }
+        },
+        {
+          "id": "node_9e195c419fab",
+          "type": "profile",
+          "title": "ROOT Profile",
+          "x": 840,
+          "y": 360,
+          "properties": {
+            "name": "profile",
+            "x": "deltaE",
+            "y": "M",
+            "bins": 100,
+            "minimum": -0.3,
+            "maximum": 0.15,
+            "y_min": 1.71,
+            "y_max": 1.82,
+            "filename": "results/profile.root"
+          }
+        },
+        {
+          "id": "node_e4934143e2d7",
+          "type": "profile_fit",
+          "title": "Profile Fit",
+          "x": 1120,
+          "y": 360,
+          "properties": {
+            "x": "deltaE",
+            "y": "M",
+            "bins": 100,
+            "minimum": -0.3,
+            "maximum": 0.15,
+            "y_min": 1.71,
+            "y_max": 1.82,
+            "formula": "[0] + [1]*x",
+            "parameters": [
+              {
+                "name": "intercept",
+                "value": 1.777,
+                "minimum": 1.7,
+                "maximum": 1.85,
+                "constant": false
+              },
+              {
+                "name": "slope",
+                "value": 0,
+                "minimum": -1,
+                "maximum": 1,
+                "constant": false
+              }
+            ],
+            "plot_filename": "plots/profile_fit.png",
+            "result_filename": "results/profile_parameters.root",
+            "workspace_filename": ""
+          }
+        },
+        {
+          "id": "node_64af29e4dfc9",
+          "type": "event_split",
+          "title": "Event Split",
+          "x": 0,
+          "y": 540,
+          "properties": {
+            "parts": 2,
+            "index": 0,
+            "event_keys": "__experiment__\n__run__\n__event__\n__production__\n__ncandidates__"
+          }
+        },
+        {
+          "id": "node_7350f4559ead",
+          "type": "root_output",
+          "title": "ROOT Output",
+          "x": 280,
+          "y": 540,
+          "properties": {
+            "mode": "separate",
+            "directory": "selected/partition_0",
+            "prefix": "",
+            "suffix": "",
+            "filename": "selected.root"
+          }
+        },
+        {
+          "id": "node_255942a57681",
+          "type": "loader_end",
+          "title": "End",
+          "x": 560,
+          "y": 540,
+          "properties": {}
+        }
+      ],
+      "edges": [
+        {
+          "id": "edge_6f5c9caccf06",
+          "source": "node_9173d902b339",
+          "source_port": "out",
+          "target": "node_dd1ced7f9951",
+          "target_port": "in"
+        },
+        {
+          "id": "edge_40d8aef0c379",
+          "source": "node_dd1ced7f9951",
+          "source_port": "out",
+          "target": "node_2233ee415e9d",
+          "target_port": "in"
+        },
+        {
+          "id": "edge_ff69b0b933fb",
+          "source": "node_2233ee415e9d",
+          "source_port": "out",
+          "target": "node_c4c82b614bbc",
+          "target_port": "in"
+        },
+        {
+          "id": "edge_32be6c3e3be5",
+          "source": "node_c4c82b614bbc",
+          "source_port": "out",
+          "target": "node_85ab219b3a3e",
+          "target_port": "in"
+        },
+        {
+          "id": "edge_8ba226c8bd24",
+          "source": "node_85ab219b3a3e",
+          "source_port": "out",
+          "target": "node_501e5f1f978e",
+          "target_port": "in"
+        },
+        {
+          "id": "edge_041b2dd5f128",
+          "source": "node_501e5f1f978e",
+          "source_port": "out",
+          "target": "node_41e824a549df",
+          "target_port": "in"
+        },
+        {
+          "id": "edge_75a77fe60db4",
+          "source": "node_41e824a549df",
+          "source_port": "out",
+          "target": "node_3fa07e9179d8",
+          "target_port": "in"
+        },
+        {
+          "id": "edge_ae84db5267c3",
+          "source": "node_3fa07e9179d8",
+          "source_port": "out",
+          "target": "node_7a55e1016597",
+          "target_port": "in"
+        },
+        {
+          "id": "edge_ca8402cbe7ad",
+          "source": "node_7a55e1016597",
+          "source_port": "out",
+          "target": "node_3c062556bac1",
+          "target_port": "in"
+        },
+        {
+          "id": "edge_bc00f7805cdc",
+          "source": "node_3c062556bac1",
+          "source_port": "out",
+          "target": "node_73464d26d829",
+          "target_port": "in"
+        },
+        {
+          "id": "edge_feb23866bdc5",
+          "source": "node_73464d26d829",
+          "source_port": "out",
+          "target": "node_fbe9b3991633",
+          "target_port": "in"
+        },
+        {
+          "id": "edge_ed3ea29de062",
+          "source": "node_fbe9b3991633",
+          "source_port": "out",
+          "target": "node_bf938358934b",
+          "target_port": "in"
+        },
+        {
+          "id": "edge_89bdd8c3d037",
+          "source": "node_bf938358934b",
+          "source_port": "out",
+          "target": "node_9e195c419fab",
+          "target_port": "in"
+        },
+        {
+          "id": "edge_b2a24b4399a4",
+          "source": "node_9e195c419fab",
+          "source_port": "out",
+          "target": "node_e4934143e2d7",
+          "target_port": "in"
+        },
+        {
+          "id": "edge_0c4cec5c9c3b",
+          "source": "node_e4934143e2d7",
+          "source_port": "out",
+          "target": "node_64af29e4dfc9",
+          "target_port": "in"
+        },
+        {
+          "id": "edge_4bf7b8ca2054",
+          "source": "node_64af29e4dfc9",
+          "source_port": "out",
+          "target": "node_7350f4559ead",
+          "target_port": "in"
+        },
+        {
+          "id": "edge_241681e67322",
+          "source": "node_7350f4559ead",
+          "source_port": "out",
+          "target": "node_255942a57681",
+          "target_port": "in"
+        }
+      ],
+      "root_order": [
+        "node_9173d902b339"
+      ],
+      "foreach_regions": []
+    },
+    "loader_program_0966d7372bb2": {
+      "id": "loader_program_0966d7372bb2",
+      "name": "train_bdt",
+      "scope": "loader",
+      "nodes": [
+        {
+          "id": "node_5a2bf6c848c8",
+          "type": "loader_decl",
+          "title": "Loader Declaration",
+          "x": 0,
+          "y": 0,
+          "properties": {
+            "variable_name": "loader",
+            "branch": "tau_lfv"
+          }
+        },
+        {
+          "id": "node_c634eb570669",
+          "type": "samples",
+          "title": "Samples",
+          "x": 280,
+          "y": 0,
+          "properties": {
+            "samples": [
+              {
+                "enabled": true,
+                "directory": "Ntuple/SIGNAL/train",
+                "argument": 0,
+                "including": ".root",
+                "label": "SIGNAL",
+                "condition": ""
+              },
+              {
+                "enabled": true,
+                "directory": "Ntuple/BACKGROUND/train",
+                "argument": 0,
+                "including": ".root",
+                "label": "BACKGROUND",
+                "condition": ""
+              }
+            ]
+          }
+        },
+        {
+          "id": "node_5fba0d3aa69d",
+          "type": "sample_roles",
+          "title": "Sample Roles",
+          "x": 560,
+          "y": 0,
+          "properties": {
+            "mc": "SIGNAL\nBACKGROUND",
+            "data": "",
+            "signal": "SIGNAL",
+            "background": "BACKGROUND"
+          }
+        },
+        {
+          "id": "node_3cd332a19498",
+          "type": "event_weight",
+          "title": "Event Weight",
+          "x": 840,
+          "y": 0,
+          "properties": {
+            "weight": "demo",
+            "weight_object": "demo_weight",
+            "header": "support/demo.h",
+            "mapping": []
+          }
+        },
+        {
+          "id": "node_aeaf8cfb1171",
+          "type": "bdt_train",
+          "title": "Train FastBDT",
+          "x": 1120,
+          "y": 0,
+          "properties": {
+            "variables": "M\ndeltaE",
+            "signal_cut": "",
+            "background_cut": "",
+            "hyperparameters": [
+              {
+                "name": "NTrees",
+                "value": 100
+              },
+              {
+                "name": "Depth",
+                "value": 3
+              },
+              {
+                "name": "Shrinkage",
+                "value": 0.1
+              },
+              {
+                "name": "Subsample",
+                "value": 0.5
+              },
+              {
+                "name": "Binning",
+                "value": 8
+              }
+            ],
+            "balanced": true,
+            "directory": "models",
+            "name": "tau.weightfile"
+          }
+        },
+        {
+          "id": "node_c8c206821059",
+          "type": "loader_end",
+          "title": "End",
+          "x": 0,
+          "y": 180,
+          "properties": {}
+        }
+      ],
+      "edges": [
+        {
+          "id": "edge_f42c88e27f41",
+          "source": "node_5a2bf6c848c8",
+          "source_port": "out",
+          "target": "node_c634eb570669",
+          "target_port": "in"
+        },
+        {
+          "id": "edge_35fd2f464843",
+          "source": "node_c634eb570669",
+          "source_port": "out",
+          "target": "node_5fba0d3aa69d",
+          "target_port": "in"
+        },
+        {
+          "id": "edge_ed5eb023e343",
+          "source": "node_5fba0d3aa69d",
+          "source_port": "out",
+          "target": "node_3cd332a19498",
+          "target_port": "in"
+        },
+        {
+          "id": "edge_e4f16164c15a",
+          "source": "node_3cd332a19498",
+          "source_port": "out",
+          "target": "node_aeaf8cfb1171",
+          "target_port": "in"
+        },
+        {
+          "id": "edge_5ab2c4f85c89",
+          "source": "node_aeaf8cfb1171",
+          "source_port": "out",
+          "target": "node_c8c206821059",
+          "target_port": "in"
+        }
+      ],
+      "root_order": [
+        "node_5a2bf6c848c8"
+      ],
+      "foreach_regions": []
+    },
+    "loader_program_da5c303cb682": {
+      "id": "loader_program_da5c303cb682",
+      "name": "evaluate_bdt",
+      "scope": "loader",
+      "nodes": [
+        {
+          "id": "node_0b86ffeb8d4e",
+          "type": "loader_decl",
+          "title": "Loader Declaration",
+          "x": 0,
+          "y": 0,
+          "properties": {
+            "variable_name": "loader",
+            "branch": "tau_lfv"
+          }
+        },
+        {
+          "id": "node_8f3dc3830f67",
+          "type": "samples",
+          "title": "Samples",
+          "x": 280,
+          "y": 0,
+          "properties": {
+            "samples": [
+              {
+                "enabled": true,
+                "directory": "Ntuple/SIGNAL/test",
+                "argument": 0,
+                "including": ".root",
+                "label": "SIGNAL",
+                "condition": ""
+              },
+              {
+                "enabled": true,
+                "directory": "Ntuple/BACKGROUND/test",
+                "argument": 0,
+                "including": ".root",
+                "label": "BACKGROUND",
+                "condition": ""
+              }
+            ]
+          }
+        },
+        {
+          "id": "node_743b97c1fc41",
+          "type": "sample_roles",
+          "title": "Sample Roles",
+          "x": 560,
+          "y": 0,
+          "properties": {
+            "mc": "SIGNAL\nBACKGROUND",
+            "data": "",
+            "signal": "SIGNAL",
+            "background": "BACKGROUND"
+          }
+        },
+        {
+          "id": "node_a8174afb1e4c",
+          "type": "event_weight",
+          "title": "Event Weight",
+          "x": 840,
+          "y": 0,
+          "properties": {
+            "weight": "demo",
+            "weight_object": "demo_weight",
+            "header": "support/demo.h",
+            "mapping": []
+          }
+        },
+        {
+          "id": "node_73239e84ef58",
+          "type": "bdt_apply",
+          "title": "Apply FastBDT",
+          "x": 1120,
+          "y": 0,
+          "properties": {
+            "variables": "M\ndeltaE",
+            "classifier": "models/tau.weightfile",
+            "branch": "BDT_output"
+          }
+        },
+        {
+          "id": "node_d001064e61d4",
+          "type": "bdt_evaluate",
+          "title": "BDT Performance",
+          "x": 0,
+          "y": 180,
+          "properties": {
+            "metric": "AUC",
+            "expression": "BDT_output",
+            "minimum": 0.0,
+            "maximum": 1.0,
+            "bins": 100,
+            "rank": 1,
+            "initial_signal": 1000.0,
+            "alpha": 1.28,
+            "filename": "results/test_auc.txt",
+            "write_mode": "w"
+          }
+        },
+        {
+          "id": "node_1e0d694ecbd7",
+          "type": "bdt_evaluate",
+          "title": "BDT Performance",
+          "x": 280,
+          "y": 180,
+          "properties": {
+            "metric": "Punzi",
+            "expression": "BDT_output",
+            "minimum": 0.0,
+            "maximum": 1.0,
+            "bins": 100,
+            "rank": 1,
+            "initial_signal": 1000.0,
+            "alpha": 1.28,
+            "filename": "plots/test_punzi.png",
+            "write_mode": "w"
+          }
+        },
+        {
+          "id": "node_4271a9127f92",
+          "type": "loader_end",
+          "title": "End",
+          "x": 560,
+          "y": 180,
+          "properties": {}
+        }
+      ],
+      "edges": [
+        {
+          "id": "edge_f941ef63ce6c",
+          "source": "node_0b86ffeb8d4e",
+          "source_port": "out",
+          "target": "node_8f3dc3830f67",
+          "target_port": "in"
+        },
+        {
+          "id": "edge_730321978a01",
+          "source": "node_8f3dc3830f67",
+          "source_port": "out",
+          "target": "node_743b97c1fc41",
+          "target_port": "in"
+        },
+        {
+          "id": "edge_32521b2b06da",
+          "source": "node_743b97c1fc41",
+          "source_port": "out",
+          "target": "node_a8174afb1e4c",
+          "target_port": "in"
+        },
+        {
+          "id": "edge_50ee42f9b65c",
+          "source": "node_a8174afb1e4c",
+          "source_port": "out",
+          "target": "node_73239e84ef58",
+          "target_port": "in"
+        },
+        {
+          "id": "edge_0decb39d7dfe",
+          "source": "node_73239e84ef58",
+          "source_port": "out",
+          "target": "node_d001064e61d4",
+          "target_port": "in"
+        },
+        {
+          "id": "edge_068d7d7ff56f",
+          "source": "node_d001064e61d4",
+          "source_port": "out",
+          "target": "node_1e0d694ecbd7",
+          "target_port": "in"
+        },
+        {
+          "id": "edge_6d840161f0e1",
+          "source": "node_1e0d694ecbd7",
+          "source_port": "out",
+          "target": "node_4271a9127f92",
+          "target_port": "in"
+        }
+      ],
+      "root_order": [
+        "node_0b86ffeb8d4e"
+      ],
+      "foreach_regions": []
+    }
+  },
+  "foreach_graphs": {},
+  "backend": "local",
+  "backend_options": {
+    "local_workers": 4,
+    "lsf_poll_seconds": 10,
+    "lsf_max_active_jobs": 500,
+    "lsf_cancel_on_failure": true,
+    "condor_universe": "vanilla"
+  },
+  "build_options": {
+    "compiler": "g++",
+    "cpp_standard": "c++17",
+    "belle2_analysis_dir": "../../Belle2_analysis",
+    "common_compile_flags": "",
+    "common_link_flags": "",
+    "loader_libraries": "-lRooFit\n-lRooStats\n-lRooFitCore\n-lMinuit\n-lFastBDT_static"
+  },
+  "version": 10
+}

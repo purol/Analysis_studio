@@ -53,25 +53,31 @@ def parameter_preset(model):
 
 def recipe_specs():
     plots = P("plots", "Plots", "table", [row_defaults(PLOT_COLUMNS)], columns=PLOT_COLUMNS)
+    plot_options = (
+        P("automatic_binning", "Use framework binning", "bool", False),
+        P("normalized", "Normalize plots", "bool", False),
+        P("log_scale", "Log scale", "bool", False),
+    )
     return [
-        NodeSpec("samples", "Samples", "Analysis tasks", "loader", "#4263a8", properties=(
+        NodeSpec("samples", "Samples", "Input", "loader", "#4263a8", properties=(
             P("samples", "Input samples", "table", [row_defaults(SAMPLE_COLUMNS)], columns=SAMPLE_COLUMNS,
               help="Enter paths without C++ quotes. To use a runtime directory, set its argv number (1 = first argument). Filename contains is a substring, not a glob."),
         )),
-        NodeSpec("cut_flow", "Cut Flow", "Analysis tasks", "loader", "#a06c2b", properties=(
+        NodeSpec("cut_flow", "Cut Flow", "Selection", "loader", "#a06c2b", properties=(
             P("steps", "Selection stages", "table", [row_defaults(CUT_COLUMNS)], columns=CUT_COLUMNS,
               help="Rows run from top to bottom. Disable a stage to skip its cut and diagnostics."),
             P("plot_timing", "Plots at each stage", "choice", "none", ("none", "before", "after", "both")),
             plots,
             P("output_directory", "Plot directory", "path", "plots"),
+            *plot_options,
         )),
-        NodeSpec("plot_set", "Plot Set", "Analysis tasks", "loader", "#9a4d64", properties=(
-            plots, P("output_directory", "Plot directory", "path", "plots"),
+        NodeSpec("plot_set", "Plot Set", "Plot", "loader", "#9a4d64", properties=(
+            plots, P("output_directory", "Plot directory", "path", "plots"), *plot_options,
         )),
         NodeSpec("print_information", "Print Information", "Output", "loader", "#9a4d64", properties=(
             P("message", "Message", default="Selection summary"),
         )),
-        NodeSpec("fit", "Fit", "Analysis tasks", "loader", "#537e9b", properties=(
+        NodeSpec("fit", "Fit", "Fit", "loader", "#537e9b", properties=(
             P("expression", "Observable expression", default="M"),
             P("minimum", "Observable min", "float", 1.7),
             P("maximum", "Observable max", "float", 1.85),
@@ -95,7 +101,7 @@ def add_analysis_starter(graph):
     """A connected GUI starting point; its initial selection accepts all events."""
     from .registry import NODE_SPECS
     previous = None
-    for index, (kind, title) in enumerate((("loader_decl", "Data source"),
+    for index, (kind, title) in enumerate((("loader_decl", "Loader Declaration"),
                                           ("samples", "Input samples"),
                                           ("cut_flow", "Selections"),
                                           ("loader_end", "Run analysis"))):

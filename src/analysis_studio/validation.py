@@ -15,6 +15,7 @@ from .model import (
 )
 from .registry import NODE_SPECS
 from .recipe_validation import validate_recipe
+from .module_validation import validate_module, validate_support_files
 
 
 _CPP_IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
@@ -93,6 +94,15 @@ def validate_loader_graph(graph: Graph) -> list[str]:
     errors = graph.validate(NODE_SPECS)
     for node in graph.nodes:
         errors.extend(validate_recipe(node))
+        errors.extend(validate_module(node))
+    errors.extend(validate_support_files(graph))
+    weight_objects = {}
+    for node in graph.nodes:
+        if node.type == "event_weight" and node.properties.get("weight_object"):
+            weight, symbol = node.properties["weight"], node.properties["weight_object"]
+            if weight in weight_objects and weight_objects[weight] != symbol:
+                errors.append(f"{node.title}: weight '{weight}' is registered with conflicting EventWeight objects.")
+            weight_objects[weight] = symbol
     if graph.scope != "loader":
         return [*errors, f"{graph.name}: expected a Loader program graph."]
     if not graph.nodes:
@@ -105,6 +115,8 @@ def validate_loader_graph(graph: Graph) -> list[str]:
 
     variables: list[str] = []
     for declaration in declarations:
+        if declaration.properties.get("loader_class", "Loader") != "Loader":
+            errors.append(f"{declaration.title}: only the Loader class is supported. Remove the legacy loader_class override from the project.")
         variable = str(declaration.properties.get("variable_name", "")).strip()
         branch = str(declaration.properties.get("branch", "")).strip()
         if not _CPP_IDENTIFIER.fullmatch(variable):
@@ -554,4 +566,6 @@ def validate_project(
     for graph in project.loader_programs.values():
         if graph.nodes or graph.id in referenced_programs:
             errors.extend(validate_loader_graph(graph))
+            if project_directory is not None:
+                errors.extend(validate_support_files(graph, Path(project_directory)))
     return errors

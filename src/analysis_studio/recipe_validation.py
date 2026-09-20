@@ -68,8 +68,9 @@ def validate_recipe(node):
         filenames = set()
         for where, raw in rows("plots"):
             row = {**row_defaults(PLOT_COLUMNS), **raw}
-            bounds(row, where)
-            number(row, "bins", where, positive=True, integer=True)
+            if not p.get("automatic_binning", False):
+                bounds(row, where)
+                number(row, "bins", where, positive=True, integer=True)
             if not str(row.get("expression", "")).strip():
                 fail(where, "plot expression is empty.")
             filename = str(row.get("filename", "")).strip()

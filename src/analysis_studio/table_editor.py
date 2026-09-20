@@ -5,7 +5,34 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QDialog, QDialogButtonBox, QHBoxLayout, QPushButton, QTableWidget,
     QTableWidgetItem, QVBoxLayout, QWidget, QAbstractItemView,
+    QStyledItemDelegate, QComboBox,
 )
+
+
+class RecipeCellDelegate(QStyledItemDelegate):
+    def __init__(self, columns, parent):
+        super().__init__(parent)
+        self.columns = columns
+
+    def createEditor(self, parent, option, index):
+        prop = self.columns[index.column()]
+        if prop.kind == "choice":
+            editor = QComboBox(parent)
+            editor.addItems(prop.choices)
+            return editor
+        return super().createEditor(parent, option, index)
+
+    def setEditorData(self, editor, index):
+        if isinstance(editor, QComboBox):
+            editor.setCurrentText(str(index.data()))
+        else:
+            super().setEditorData(editor, index)
+
+    def setModelData(self, editor, model, index):
+        if isinstance(editor, QComboBox):
+            model.setData(index, editor.currentText())
+        else:
+            super().setModelData(editor, model, index)
 
 
 class RecipeTableEditor(QWidget):
@@ -19,6 +46,7 @@ class RecipeTableEditor(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         self.table = QTableWidget(0, len(columns))
+        self.table.setItemDelegate(RecipeCellDelegate(columns, self.table))
         self.table.setHorizontalHeaderLabels([p.label for p in columns])
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)

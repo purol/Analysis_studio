@@ -255,6 +255,8 @@ class PropertyEditor(QScrollArea):
             item = self._layout.takeAt(0)
             widget = item.widget()
             if widget:
+                widget.hide()
+                widget.setParent(None)
                 widget.deleteLater()
 
     def show_empty(self) -> None:
@@ -427,7 +429,13 @@ class PropertyEditor(QScrollArea):
         title.editingFinished.connect(lambda: self._set_node_title(title.text()))
         form.addRow("Block name", title)
 
-        advanced_group = QGroupBox("Advanced implementation settings")
+        if self.node.type == "loader_decl":
+            form.addRow(self._help_label(
+                "C++ variable names are assigned automatically when a declaration is added. "
+                "Showing or hiding advanced settings does not change the stored name. "
+                "Names must be unique within this Loader program; different programs have separate C++ scopes."
+            ))
+        advanced_group = QGroupBox("Show advanced C++ settings")
         advanced_group.setCheckable(True)
         advanced_group.setChecked(False)
         advanced_layout = QVBoxLayout(advanced_group)
@@ -583,7 +591,7 @@ class PropertyEditor(QScrollArea):
         self.scene.refresh_start_badges()
         self.scene.graph_changed.emit()
         self.property_changed.emit()
-        refresh_panel = name in {"loader_program", "build_mode", "plot_timing", "use_fit_range"} or (
+        refresh_panel = name in {"loader_program", "build_mode", "plot_timing", "use_fit_range", "mode", "metric"} or (
             self.node.type == "custom_command" and name == "code"
         )
         if refresh_panel:

@@ -34,10 +34,17 @@ analysis-studio-cli --help
 
 ## Analysis task editor
 
-Loader programs now start with a connected Data Source → Samples → Cut Flow → End
+Loader programs now start with a connected Loader Declaration → Samples → Cut Flow → End
 template. Ordered tables collect input samples, selection stages and plot sets;
 the Fit task handles common PDFs, parameter presets, fit ranges and ROOT outputs.
-Implementation settings are collapsed under Advanced.
+The class is fixed to Loader. Showing advanced settings only reveals the stored
+C++ variable name. Task blocks live in Input, Selection, Transform, Plot, BDT,
+Fit and Output; individual low-level calls are grouped under Advanced.
+
+The [Belle_tau module guide](docs/belle_tau_modules.md) documents sample roles,
+weights, ranked variables, candidate selection, FastBDT, histogram/dataset/profile
+outputs and C++ support files. The audited 35 direct Loader methods all have GUI
+adapters; this does not imply full migration of ROOT/RooStats algorithms.
 
 Open `examples/analysis_tasks/tau_selection.astudio.json` for a working editor
 example inspired by Belle_tau. See [the task editor guide](docs/analysis_tasks.md)

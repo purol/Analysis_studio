@@ -136,7 +136,9 @@ class NodeItem(QGraphicsRectItem):
         self.title_item.setPlainText(title)
 
     def refresh_summary(self) -> None:
-        key = {"samples": "samples", "cut_flow": "steps", "plot_set": "plots"}.get(self.node.type)
+        key = {"samples": "samples", "cut_flow": "steps", "plot_set": "plots",
+               "stack_plots": "plots", "plots_2d": "plots", "variables": "variables",
+               "ranked_variables": "outputs"}.get(self.node.type)
         if key:
             rows = self.node.properties.get(key, [])
             count = sum(bool(row.get("enabled", True)) for row in rows if isinstance(row, dict))
@@ -867,6 +869,8 @@ class BlockPalette(QTreeWidget):
             item.setToolTip(0, "Drag a compact loop border around workflow blocks.")
             parent.addChild(item)
         self.expandAll()
+        if "Advanced" in categories:
+            categories["Advanced"].setExpanded(False)
 
     def startDrag(self, supported_actions) -> None:  # noqa: N802
         item = self.currentItem()

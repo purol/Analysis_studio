@@ -1,10 +1,12 @@
 from __future__ import annotations
+from .analysis_modules import support_files
 
 from dataclasses import dataclass
 from pathlib import Path
 import hashlib
 import json
 import os
+import re
 import shlex
 import shutil
 import stat
@@ -240,6 +242,23 @@ def _framework_flags(framework: Path) -> tuple[list[str], list[str]]:
     return compile_flags, link_flags
 
 
+def _local_support_dependencies(root: Path, paths: Iterable[Path]) -> list[Path]:
+    """Track quoted project-local includes as well as explicitly listed support files."""
+    pending, seen = list(paths), set()
+    while pending:
+        path = pending.pop().resolve()
+        if path in seen or not path.is_file():
+            continue
+        seen.add(path)
+        for name in re.findall(r'^\s*#\s*include\s*"([^"\n]+)"', path.read_text(encoding="utf-8", errors="replace"), re.M):
+            for candidate in (path.parent / name, root / name):
+                candidate = candidate.resolve()
+                if candidate.is_relative_to(root.resolve()) and candidate.is_file():
+                    pending.append(candidate)
+                    break
+    return sorted(seen)
+
+
 def _compile_cpp(
     project: Project,
     root: Path,
@@ -330,7 +349,13 @@ def compile_project(
         source = generated / loader_source_filename(graph)
         build_inputs.append(source)
         output = binary_dir / safe_program_name(graph.name)
-        _compile_cpp(project, root, source, output, [], [], [], require_framework(), log)
+        headers = [_resolve_project_file(root, path, "Support header") for path in support_files(graph, "headers")]
+        sources = [_resolve_project_file(root, path, "Support source") for path in support_files(graph, "sources")]
+        for dependency in [*headers, *sources]:
+            if not dependency.is_file():
+                raise FileNotFoundError(f"Loader C++ support file is missing: {dependency}")
+        build_inputs.extend(_local_support_dependencies(root, [*headers, *sources]))
+        _compile_cpp(project, root, source, output, sources, [f"-I{root}"], [], require_framework(), log)
         outputs.append(output)
         log(f"Built {output.relative_to(root)}")
 

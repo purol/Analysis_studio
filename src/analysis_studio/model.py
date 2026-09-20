@@ -1313,6 +1313,8 @@ class Project:
                 if spec:
                     for prop in spec.properties:
                         node.properties.setdefault(prop.name, deepcopy(prop.default))
+                if node.type == "loader_decl" and node.title in {"Data Source", "Data source"}:
+                    node.title = "Loader Declaration"
                 if node.type in {"loader_execute", "custom_command"}:
                     for obsolete in (
                         "local_max_parallel",

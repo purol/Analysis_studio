@@ -1,13 +1,16 @@
 # Analysis tasks 사용 안내
 
-새 Loader Program을 만들면 `Data Source → Samples → Cut Flow → End`가 연결된 상태로 시작합니다.
+새 Loader Program을 만들면 `Loader Declaration → Samples → Cut Flow → End`가 연결된 상태로 시작합니다.
 첫 Cut Flow 조건은 `1`(모든 이벤트 통과)입니다. 실제 분석 조건으로 바꾸세요.
 기존 프로젝트의 블록과 C++ 생성 방식은 유지됩니다.
 
 ## 입력과 선택
 
-- **Data Source**: tree 이름을 설정합니다. Loader class와 C++ 변수명은 접힌 Advanced 설정에 있습니다.
-  새 Loader의 변수명은 중복되지 않게 자동 지정됩니다.
+- **Loader Declaration**: tree 이름을 설정합니다. 클래스는 `Loader`로 고정되며 선택 입력은 없습니다.
+  새 Loader의 변수명은 같은 프로그램에서 중복되지 않게 `loader`, `loader_2` 등으로 지정됩니다.
+  `Show advanced C++ settings`는 저장된 변수명을 표시/숨기기만 합니다. 체크 여부는 코드 생성에 영향을 주지 않습니다.
+  수동 이름은 체크를 해제해도 유지됩니다. 수동 변경으로 이름이 겹치면 검증 오류가 발생합니다.
+  서로 다른 Loader Program은 별도 C++ 실행 파일이므로 같은 변수명을 사용해도 됩니다.
 - **Samples**: 경로, 파일명에 포함될 문자열, 샘플 라벨, 선택적 초기 cut을 표에 입력합니다.
   C++ 따옴표는 필요 없습니다. `Directory argv`가 0이면 경로를 쓰고, 1 이상이면 실행 인자를 씁니다.
   Workflow의 Loader Execute `argv`에 한 줄씩 인자를 설정하세요. 필터는 glob이 아닌 부분 문자열입니다.
@@ -57,9 +60,9 @@ Belle_tau의 질량/에너지 선택과 BifurGauss 사용 방식을 보여 주�
 이 컴퓨터에서는 Qt 편집 동작, 저장/복원, 생성 코드 순서를 테스트했습니다.
 ROOT와 C++ 컴파일러가 없어 실제 ROOT 컴파일·수치 피팅은 검증하지 않았습니다.
 
-아직 GUI로 감싸지 않은 복합/동시 PDF, TProfile/TF1, NLL, 사용자 가중치 및 BDT 기능은
-기존 Custom C++ / Custom Command로 연결해야 합니다. 이 변경은 자주 쓰는 작업의 GUI 경로를 추가하며
-Belle2_analysis 전체 API를 대체하지 않습니다.
+TProfile/TF1, 사용자 가중치 연결, BDT 학습/적용/평가는 전용 블록으로 지원합니다.
+새 카테고리와 전체 대응 목록은 [Belle_tau 모듈 가이드](belle_tau_modules.md)를 참고하세요.
+복합/동시 PDF, NLL, CLs 및 직접 ROOT 후처리 전체를 GUI화한 것은 아닙니다.
 
 함께 수정한 프레임워크 파일: `Belle2_analysis/include/fit_manager.h`의
 `ExportFitResult`에서 `structureDetermined`와 `structure_determined`가 섞인 컴파일 오류를 바로잡았습니다.

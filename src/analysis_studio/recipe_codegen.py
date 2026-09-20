@@ -30,8 +30,11 @@ def recipe_to_cpp(loader, node):
                 continue
             filename = str(PurePosixPath(str(p.get("output_directory", "plots"))) / (prefix + str(row["filename"])))
             mkdir(filename)
-            lines.append(f"{loader}.DrawTH1D({q(row['expression'])}, {q(row['title'])}, "
-                         f"{int(float(row['bins']))}, {float(row['minimum'])}, {float(row['maximum'])}, {q(filename)});")
+            args = [q(row['expression']), q(row['title'])]
+            if not p.get("automatic_binning", False):
+                args += [str(int(float(row['bins']))), str(float(row['minimum'])), str(float(row['maximum']))]
+            args += [q(filename), str(bool(p.get("normalized", False))).lower(), str(bool(p.get("log_scale", False))).lower()]
+            lines.append(f"{loader}.DrawTH1D({', '.join(args)});")
 
     if node.type == "samples":
         for raw in p["samples"]:
